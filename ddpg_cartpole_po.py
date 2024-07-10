@@ -20,6 +20,13 @@ import torch.nn.functional as F
 from stable_baselines3.common.buffers import ReplayBuffer
 
 ENV_NAME = 'InvertedPendulum-v4'
+q = 10 # number of time history required. 
+nx = 4 #dim of state
+nu = 1 # dim of control
+nz = 2 # dim of measurements
+nZ = q*nz + (q-1)*nu #dim of information state
+
+
 
 # ALGO LOGIC: initialize agent here:
 class QNetwork(nn.Module):
@@ -58,13 +65,14 @@ class Actor(nn.Module):
         return x * self.action_scale + self.action_bias
 
 def reward_function(observation, action):
-    diag_q = [1,10,1,1]; 
-    r = 1;
-    #print("observation:", observation)
-    #print("observation:", observation[0,1])
-    reward = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
-                diag_q[2]*(observation[2]**2) + diag_q[3]*(observation[3]**2) +\
-                r*(action**2)
+    diag_q = [10,10,10,10,1] #x(t),\theta(t), x(t-1), \theta(t-1), u(t-1)
+    r = 1 #u(t)
+
+    reward = diag_q[0]*(np.sum(observation[0:q*nz]**2)) + diag_q[4]*(np.sum(observation[q*nz:nZ]**2)) +\
+                 r*(action**2)
+    # reward = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
+    #             diag_q[2]*(observation[2]**2) + diag_q[3]*(observation[3]**2) +\
+    #             diag_q[4]*(observation[4]**2) + r*(action**2)
 
     return -reward
 
@@ -79,25 +87,37 @@ def make_env(env_id, render_bool):
     min_action = -20
     max_action = 20
     env = RescaleAction(env, min_action=min_action, max_action=max_action)
+    env.observation_space = gym.spaces.Box(-np.inf, np.inf, (nZ,), np.float64)
     env.reset()
 
     return env
+
+def information_state(prev_info_state, next_obs, control):
+
+    info_state = np.zeros((nZ))
+    info_state[0:2] = next_obs[0:2]
+    info_state[2:q*nz] = prev_info_state[0:(q-1)*nz]
+
+    info_state[q*nz:q*nz+nu] = control
+    info_state[q*nz+nu:nZ] = prev_info_state[q*nz:q*nz + (q-2)*nu]
+    
+    return info_state
 
 if __name__ == "__main__":
 
     given_seed = 1
     buffer_size = int(1e6)
     batch_size = 256
-    total_timesteps = 100000 #default = 1000000
+    total_timesteps = 500000 #default = 1000000
     learning_starts = 25000 #default = 25e3
-    exploration_noise = 0.1
+    exploration_noise = 0.001
     policy_frequency = 2
     tau = 0.005
     gamma = 0.99
     learning_rate = 3e-4
     
-    exp_name = 'carpole_test'
-    run_name = 'test'
+    exp_name = 'carpole_test_po_q_10'
+    run_name = 'test_po'
     random.seed(given_seed)
     np.random.seed(given_seed)
     torch.manual_seed(given_seed)
@@ -117,7 +137,7 @@ if __name__ == "__main__":
     actor = Actor(env).to(device)
     qf1 = QNetwork(env).to(device)
     # load pretrained model.
-    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test/carpole_test.cleanrl_model")
+    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test_po/carpole_test_po_q_10.cleanrl_model")
     actor.load_state_dict(checkpoint[0])
     qf1.load_state_dict(checkpoint[1])
 
@@ -129,6 +149,8 @@ if __name__ == "__main__":
     actor_optimizer = optim.Adam(list(actor.parameters()), lr=learning_rate)
 
     env.observation_space.dtype = np.float32
+
+    print('env.observation_space = ', env.observation_space)
     rb = ReplayBuffer(
         buffer_size,
         env.observation_space,
@@ -141,23 +163,39 @@ if __name__ == "__main__":
 
     # TRY NOT TO MODIFY: start the game
     obs, _ = env.reset(seed=given_seed)
+    prev_actions = np.array([0])
+    info_state = np.zeros((nZ))
+    #initial transient
+    for transient_step in range(q):
+        actions = 0.001*np.array(env.action_space.sample())
+        next_obs, rewards, terminations, truncations, infos = env.step(actions)
+        info_state = information_state(info_state, next_obs, actions)
+
+        #print('info_state = ', info_state, ' actions=', actions)
+    
     for global_step in range(total_timesteps):
         # ALGO LOGIC: put action logic here
+
+        prev_info_state = info_state
+
         if global_step < learning_starts:
             actions = np.array(env.action_space.sample())
             
         else:
             with torch.no_grad():
-                actions = actor(torch.Tensor(obs).to(device))
+                actions = actor(torch.Tensor(info_state).to(device))
                 actions += torch.normal(0, actor.action_scale * exploration_noise)
                 actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
 
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
+        rewards = reward_function(info_state, actions)
+
+        info_state = information_state(prev_info_state, next_obs, actions)
+
         
-        rewards = reward_function(next_obs, actions)
         #print('step=', global_step, ' actions=', actions, ' rewards=', rewards,\
-        #      ' obs=', next_obs, ' termination=', terminations, ' trunctions=', truncations)
+        #      ' obs=', next_obs)
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
         if "final_info" in infos:
@@ -166,14 +204,15 @@ if __name__ == "__main__":
                 break
 
         # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
-        real_next_obs = next_obs.copy()
+        real_info_state = info_state.copy()
 
         # if truncations:
         #     real_next_os = infos["final_observation"]
-        rb.add(obs, real_next_obs, actions, rewards, terminations, infos)
+        rb.add(prev_info_state, real_info_state, actions, rewards, terminations, infos)
 
         # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
         obs = next_obs
+        prev_actions = actions
 
         # ALGO LOGIC: training.
         if global_step > learning_starts:
@@ -210,7 +249,7 @@ if __name__ == "__main__":
                 print("SPS:", int(global_step / (time.time() - start_time)))
 
 
-        if abs(next_obs[0])>= 10:
+        if abs(next_obs[0])>= 100:
             print('resetting')
             obs, _ = env.reset(seed=given_seed)
 

@@ -62,11 +62,11 @@ def reward_function(observation, action):
     r = 1;
     #print("observation:", observation)
     #print("observation:", observation[0,1])
-    reward = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
+    cost = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
                 diag_q[2]*(observation[2]**2) + diag_q[3]*(observation[3]**2) +\
                 r*(action**2)
 
-    return -reward
+    return -cost
 
 def make_env(env_id, render_bool):
 
@@ -90,11 +90,11 @@ if __name__ == "__main__":
     batch_size = 256
     total_timesteps = 100000 #default = 1000000
     learning_starts = 25000 #default = 25e3
-    exploration_noise = 0.1
+    exploration_noise = 0.001
     policy_frequency = 2
     tau = 0.005
     gamma = 0.99
-    learning_rate = 3e-4
+    learning_rate = 3e-5
     
     exp_name = 'carpole_test'
     run_name = 'test'
@@ -155,7 +155,7 @@ if __name__ == "__main__":
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
         
-        rewards = reward_function(next_obs, actions)
+        rewards = reward_function(obs, actions)
         #print('step=', global_step, ' actions=', actions, ' rewards=', rewards,\
         #      ' obs=', next_obs, ' termination=', terminations, ' trunctions=', truncations)
 

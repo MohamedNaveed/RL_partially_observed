@@ -19,6 +19,11 @@ import torch.nn.functional as F
 from stable_baselines3.common.buffers import ReplayBuffer
 
 ENV_NAME = 'InvertedPendulum-v4'
+q = 10 # number of time history required. 
+nx = 4 #dim of state
+nu = 1 # dim of control
+nz = 2 # dim of measurements
+nZ = q*nz + (q-1)*nu #dim of information state
 
 def make_env(env_id, render_bool):
 
@@ -31,9 +36,21 @@ def make_env(env_id, render_bool):
     min_action = -20
     max_action = 20
     env = RescaleAction(env, min_action=min_action, max_action=max_action)
+    env.observation_space = gym.spaces.Box(-np.inf, np.inf, (nZ,), np.float64)
     env.reset()
 
     return env
+
+def information_state(prev_info_state, next_obs, control):
+
+    info_state = np.zeros((nZ))
+    info_state[0:2] = next_obs[0:2]
+    info_state[2:q*nz] = prev_info_state[0:(q-1)*nz]
+
+    info_state[q*nz:q*nz+nu] = control
+    info_state[q*nz+nu:nZ] = prev_info_state[q*nz:q*nz + (q-2)*nu]
+    
+    return info_state
 
 # ALGO LOGIC: initialize agent here:
 class QNetwork(nn.Module):
@@ -102,7 +119,7 @@ if __name__ == "__main__":
 
     actor = Actor(env).to(device)
     qf1 = QNetwork(env).to(device)
-    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test/carpole_test.cleanrl_model")
+    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test_po/carpole_test_po_q_10.cleanrl_model")
     actor.load_state_dict(checkpoint[0])
     qf1.load_state_dict(checkpoint[1])
 
@@ -110,20 +127,36 @@ if __name__ == "__main__":
     qf1.eval() 
 
     obs, _ = env.reset(seed=given_seed)
+    prev_actions = np.array([0])
+    info_state = np.zeros((nZ))
+    
+    #initial transient
+    for transient_step in range(q):
+        actions = 0.001*np.array(env.action_space.sample())
+        next_obs, rewards, terminations, truncations, infos = env.step(actions)
+        info_state = information_state(info_state, next_obs, actions)
+
+        #print('info_state = ', info_state, ' actions=', actions)
 
     for global_step in range(total_timesteps):
+
+        prev_info_state = info_state
+
         with torch.no_grad():
-            actions = actor(torch.Tensor(obs).to(device))
-            cost_to_go = -qf1(torch.Tensor(obs).to(device), actions).item()
+            actions = actor(torch.Tensor(info_state).to(device))
+            cost_to_go = -qf1(torch.Tensor(info_state).to(device), actions).item()
             actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
+
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
+        info_state = information_state(info_state, next_obs, actions)
         
         if terminations:
-            obs, _ = env.reset(seed=given_seed)
+            next_obs, _ = env.reset(seed=given_seed)
         #env.render()
         
         print("observation:", next_obs, " action:", actions, ' CTG=', cost_to_go)
         
         obs = next_obs
+        prev_actions = actions
 
     env.close()
