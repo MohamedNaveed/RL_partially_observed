@@ -13,6 +13,7 @@ import torch.nn.functional as F
 
 
 from stable_baselines3.common.buffers import ReplayBuffer
+import csv
 from noise_injector import OrnsteinUhlenbeckActionNoise
 
 ENV_NAME = 'InvertedPendulum-v4'
@@ -104,14 +105,27 @@ def information_state(prev_info_state, next_obs, control):
     
     return info_state
 
+def write_data_csv(data):
+    
+
+    # Write the data to a CSV file
+    with open(csv_file, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        
+        # Write the header only if the file is empty
+        if file.tell() == 0:
+            writer.writerow(['step', 'rewards', 'qf1_loss', 'actor_loss', 'observations', 'action'])
+        
+        # Write the data
+        writer.writerow(data)
 if __name__ == "__main__":
 
     given_seed = 1
     buffer_size = int(1e6)
     batch_size = 256
-    total_timesteps = 10000 #default = 1000000
+    total_timesteps = 200000 #default = 1000000
     learning_starts = 25000 #default = 25e3
-    episode_length = 100
+    episode_length = 200
     exploration_noise = 0.001
     policy_frequency = 2
     tau = 0.005
@@ -137,10 +151,11 @@ if __name__ == "__main__":
 
     actor = Actor(env).to(device)
     qf1 = QNetwork(env).to(device)
+    
     # load pretrained model.
-    #checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test_po/carpole_test_po_q_10.cleanrl_model")
-    #actor.load_state_dict(checkpoint[0])
-    #qf1.load_state_dict(checkpoint[1])
+    checkpoint = torch.load(f"runs/{run_name}/{exp_name}.pth")
+    actor.load_state_dict(checkpoint[0])
+    qf1.load_state_dict(checkpoint[1])
 
     qf1_target = QNetwork(env).to(device)
     target_actor = Actor(env).to(device)
@@ -165,7 +180,7 @@ if __name__ == "__main__":
     # TRY NOT TO MODIFY: start the game
     obs, _ = env.reset(seed=given_seed)
     
-    
+    prev_actions = np.array([0])
     info_state = np.zeros((nZ))
     #initial transient
     for transient_step in range(q):
@@ -213,7 +228,7 @@ if __name__ == "__main__":
 
         
         obs = next_obs
-    
+        prev_actions = actions
 
         # ALGO LOGIC: training.
         if global_step > learning_starts:
@@ -248,6 +263,9 @@ if __name__ == "__main__":
             if global_step % 100 == 0:
                 
                 print("SPS:", int(global_step / (time.time() - start_time)))
+                # Data to write
+                write_data = [global_step, rewards, qf1_loss.item(), actor_loss.item(), obs, actions]
+                write_data_csv(write_data)
 
         episode_t = episode_t + 1
         if abs(next_obs[0])>= 10 or episode_t == episode_length:
@@ -267,7 +285,7 @@ if __name__ == "__main__":
 
     save_model = True
     if save_model:
-        model_path = f"../runs/{run_name}/{exp_name}.pth"
+        model_path = f"runs/{run_name}/{exp_name}.pth"
         torch.save((actor.state_dict(), qf1.state_dict()), model_path)
         print(f"model saved to {model_path}")
 

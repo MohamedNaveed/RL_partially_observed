@@ -14,6 +14,7 @@ if 'step' in data.columns and 'qf1_loss' in data.columns:
     # Plot the training loss
     plt.figure(figsize=(10, 5))
     plt.plot(steps, data['qf1_loss'][idx[0]:idx[1]], label='Training Loss')
+    plt.yscale('log')  # Set y-axis scale to logarithmic
     plt.xlabel('Global Steps')
     plt.ylabel('Training Loss')
     plt.title('Training Loss Over Time')
