@@ -1,15 +1,9 @@
 import gymnasium as gym
 from gymnasium.wrappers import RescaleAction
 import numpy as np
-import math
 import random
-import matplotlib
-import matplotlib.pyplot as plt
-from collections import namedtuple, deque
-from itertools import count
 import time
 from distutils.util import strtobool
-import os
 
 import torch
 import torch.nn as nn
@@ -23,7 +17,8 @@ from noise_injector import OrnsteinUhlenbeckActionNoise
 
 ENV_NAME = 'InvertedPendulum-v4'
 csv_file = 'cartpole_output.csv' #csv file to store training progress
-
+exp_name = 'cartpole_ep_30'
+run_name = 'test'
 
 class QNetwork(nn.Module):
     def __init__(self, env):
@@ -115,9 +110,6 @@ if __name__ == "__main__":
     gamma = 0.99 #discount factor
     learning_rate = 3e-5
     
-    exp_name = 'cartpole_ep_30'
-    run_name = 'test'
-
     random.seed(given_seed)
     np.random.seed(given_seed)
     torch.manual_seed(given_seed)
@@ -139,7 +131,7 @@ if __name__ == "__main__":
     qf1 = QNetwork(env).to(device)
 
     # load pretrained model.
-    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test/cartpole_ep_30.cleanrl_model")
+    checkpoint = torch.load(f"../runs/{run_name}/{exp_name}.pth")
     actor.load_state_dict(checkpoint[0])
     qf1.load_state_dict(checkpoint[1])
 
@@ -191,12 +183,7 @@ if __name__ == "__main__":
         #print('step=', global_step, ' actions=', actions, ' rewards=', rewards,\
         #      ' obs=', next_obs, ' termination=', terminations, ' trunctions=', truncations)
 
-        
-        if "final_info" in infos:
-            for info in infos["final_info"]:
-                #print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
-                break
-
+    
         # save data to replay buffer; handle `final_observation`
         real_next_obs = next_obs.copy()
 
@@ -260,7 +247,7 @@ if __name__ == "__main__":
 
     save_model = True
     if save_model:
-        model_path = f"../runs/{run_name}/{exp_name}.cleanrl_model"
+        model_path = f"../runs/{run_name}/{exp_name}.pth"
         torch.save((actor.state_dict(), qf1.state_dict()), model_path)
         print(f"model saved to {model_path}")
 

@@ -32,7 +32,7 @@ obs, _ = env.reset()
 #print('env.observation_space=', env.observation_space,)
 q_pos = np.array([0,np.pi/4])
 q_vel = np.array([0,0])
-#env.set_state(q_pos, q_vel)
+env.set_state(q_pos, q_vel)
 
 for i in range(100):
     action =  env.action_space.sample()

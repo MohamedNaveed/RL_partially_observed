@@ -1,15 +1,10 @@
 import gymnasium as gym
 from gymnasium.wrappers import RescaleAction
 import numpy as np
-import math
 import random
-import matplotlib
-import matplotlib.pyplot as plt
-from collections import namedtuple, deque
-from itertools import count
+
 import time
-from distutils.util import strtobool
-import os
+
 
 import torch
 import torch.nn as nn
@@ -21,6 +16,10 @@ from stable_baselines3.common.buffers import ReplayBuffer
 from noise_injector import OrnsteinUhlenbeckActionNoise
 
 ENV_NAME = 'InvertedPendulum-v4'
+csv_file = 'cartpole_po_output.csv' #csv file to store training progress
+exp_name = 'carpole_test_po_q_10'
+run_name = 'test_po'
+
 q = 10 # number of time history required. 
 nx = 4 #dim of state
 nu = 1 # dim of control
@@ -110,17 +109,16 @@ if __name__ == "__main__":
     given_seed = 1
     buffer_size = int(1e6)
     batch_size = 256
-    total_timesteps = 500000 #default = 1000000
+    total_timesteps = 10000 #default = 1000000
     learning_starts = 25000 #default = 25e3
-    episode_length = 1000
+    episode_length = 100
     exploration_noise = 0.001
     policy_frequency = 2
     tau = 0.005
     gamma = 0.99
     learning_rate = 3e-4
     
-    exp_name = 'carpole_test_po_q_10'
-    run_name = 'test_po'
+    
     random.seed(given_seed)
     np.random.seed(given_seed)
     torch.manual_seed(given_seed)
@@ -167,7 +165,7 @@ if __name__ == "__main__":
     # TRY NOT TO MODIFY: start the game
     obs, _ = env.reset(seed=given_seed)
     
-    prev_actions = np.array([0])
+    
     info_state = np.zeros((nZ))
     #initial transient
     for transient_step in range(q):
@@ -206,12 +204,6 @@ if __name__ == "__main__":
         #print('step=', global_step, ' actions=', actions, ' rewards=', rewards,\
         #      ' obs=', next_obs)
 
-        # TRY NOT TO MODIFY: record rewards for plotting purposes
-        if "final_info" in infos:
-            for info in infos["final_info"]:
-                #print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
-                break
-
         # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
         real_info_state = info_state.copy()
 
@@ -219,9 +211,9 @@ if __name__ == "__main__":
         #     real_next_os = infos["final_observation"]
         rb.add(prev_info_state, real_info_state, actions, rewards, terminations, infos)
 
-        # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
+        
         obs = next_obs
-        prev_actions = actions
+    
 
         # ALGO LOGIC: training.
         if global_step > learning_starts:
@@ -261,6 +253,13 @@ if __name__ == "__main__":
         if abs(next_obs[0])>= 10 or episode_t == episode_length:
             print('resetting')
             obs, _ = env.reset()
+            
+            info_state = np.zeros((nZ))
+            #initial transient
+            for transient_step in range(q):
+                actions = 0.001*np.array(env.action_space.sample())
+                next_obs, rewards, terminations, truncations, infos = env.step(actions)
+                info_state = information_state(info_state, next_obs, actions)
             episode_t = 0
             print(f'Cost = {cost}')
             cost = 0
@@ -268,7 +267,7 @@ if __name__ == "__main__":
 
     save_model = True
     if save_model:
-        model_path = f"runs/{run_name}/{exp_name}.cleanrl_model"
+        model_path = f"../runs/{run_name}/{exp_name}.pth"
         torch.save((actor.state_dict(), qf1.state_dict()), model_path)
         print(f"model saved to {model_path}")
 

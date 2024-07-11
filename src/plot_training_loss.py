@@ -1,18 +1,19 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import numpy as np
 # Read the CSV file
-csv_file = '../data/cartpole_converged.csv'  # Replace with your CSV file path
+csv_file = '../data/cartpole_po_output.csv'  # Replace with your CSV file path
 data = pd.read_csv(csv_file)
 
 # Display the first few rows of the dataframe to verify
 print(data.head())
-
+idx = [0,data['qf1_loss'].size]
+steps = np.arange(data['qf1_loss'].size)
 # Ensure 'global_step' and 'training_loss' (or equivalent) columns exist
 if 'step' in data.columns and 'qf1_loss' in data.columns:
     # Plot the training loss
     plt.figure(figsize=(10, 5))
-    plt.plot(data['step'], data['qf1_loss'], label='Training Loss')
+    plt.plot(steps, data['qf1_loss'][idx[0]:idx[1]], label='Training Loss')
     plt.xlabel('Global Steps')
     plt.ylabel('Training Loss')
     plt.title('Training Loss Over Time')
@@ -26,10 +27,10 @@ else:
 if 'step' in data.columns and 'actor_loss' in data.columns:
     # Plot the training loss
     plt.figure(figsize=(10, 5))
-    plt.plot(data['step'], data['actor_loss'], label='Q value')
+    plt.plot(steps, data['actor_loss'][idx[0]:idx[1]], label='Q value')
     plt.xlabel('Global Steps')
     plt.ylabel('Actor Loss')
-    plt.title('Training Loss Over Time')
+    plt.title('Actor Loss Over Time')
     plt.legend()
     plt.grid(True)
     plt.show()

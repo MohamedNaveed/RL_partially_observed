@@ -1,30 +1,27 @@
 import gymnasium as gym
 from gymnasium.wrappers import RescaleAction
 import numpy as np
-import math
 import random
-import matplotlib
-import matplotlib.pyplot as plt
-from collections import namedtuple, deque
-from itertools import count
-import time
-from distutils.util import strtobool
-import os
+
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 
-from stable_baselines3.common.buffers import ReplayBuffer
 
 ENV_NAME = 'InvertedPendulum-v4'
+exp_name = 'cartpole_ep_200'
+run_name = 'test'
 
-def make_env(env_id, render_bool):
+def make_env(env_id, render_bool, record_video=False):
 
-    if render_bool:
+    if record_video:
+        env = gym.make('InvertedPendulum-v4',render_mode = "rgb_array")
+        env = gym.wrappers.RecordVideo(env, f"../videos/{run_name}")
 
+    elif render_bool: 
         env = gym.make('InvertedPendulum-v4',render_mode = "human")
+
     else:
         env = gym.make('InvertedPendulum-v4')
 
@@ -78,9 +75,6 @@ if __name__ == "__main__":
     total_timesteps = 1000
     gamma = 0.99
 
-
-    exp_name = 'carpole_test'
-    run_name = 'test'
     random.seed(given_seed)
     np.random.seed(given_seed)
     torch.manual_seed(given_seed)
@@ -92,12 +86,12 @@ if __name__ == "__main__":
 
     print(f"Using {device}");
 
-    env = make_env(ENV_NAME, render_bool = True)
+    env = make_env(ENV_NAME, render_bool = True, record_video=False)
     assert isinstance(env.action_space, gym.spaces.Box), "only continuous action space is supported"
 
     actor = Actor(env).to(device)
     qf1 = QNetwork(env).to(device)
-    checkpoint = torch.load("../runs/test/cartpole_ep_30.cleanrl_model")
+    checkpoint = torch.load(f"../runs/{run_name}/{exp_name}.pth")
     actor.load_state_dict(checkpoint[0])
     qf1.load_state_dict(checkpoint[1])
 
@@ -130,3 +124,4 @@ if __name__ == "__main__":
         obs = next_obs
 
     env.close()
+    
