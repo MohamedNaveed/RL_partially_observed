@@ -39,9 +39,10 @@ def make_env(env_id, render_bool):
 class QNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() + np.prod(env.action_space.shape), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, 1)
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() 
+                             + np.prod(env.action_space.shape), 400)
+        self.fc2 = nn.Linear(400, 300)
+        self.fc3 = nn.Linear(300, 1)
 
     def forward(self, x, a):
         x = torch.cat([x, a], 0)
@@ -54,9 +55,9 @@ class QNetwork(nn.Module):
 class Actor(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc_mu = nn.Linear(256, np.prod(env.action_space.shape))
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 400)
+        self.fc2 = nn.Linear(400, 300)
+        self.fc_mu = nn.Linear(300, np.prod(env.action_space.shape))
         # action rescaling
         self.register_buffer(
             "action_scale", torch.tensor((env.action_space.high - env.action_space.low) / 2.0, dtype=torch.float32)
@@ -73,16 +74,10 @@ class Actor(nn.Module):
 
 if __name__ == "__main__":
 
-    given_seed = 42
-    buffer_size = int(1e6)
-    batch_size = 256
-    total_timesteps = 2000
-    learning_starts = 25e3
-    exploration_noise = 0.1
-    policy_frequency = 2
-    tau = 0.005
+    given_seed = 1
+    total_timesteps = 1000
     gamma = 0.99
-    learning_rate = 3e-4
+
 
     exp_name = 'carpole_test'
     run_name = 'test'
@@ -102,15 +97,20 @@ if __name__ == "__main__":
 
     actor = Actor(env).to(device)
     qf1 = QNetwork(env).to(device)
-    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test/carpole_test.cleanrl_model")
+    checkpoint = torch.load("../runs/test/cartpole_ep_30.cleanrl_model")
     actor.load_state_dict(checkpoint[0])
     qf1.load_state_dict(checkpoint[1])
 
     actor.eval()
     qf1.eval() 
 
-    obs, _ = env.reset(seed=given_seed)
-
+    obs, _ = env.reset(seed=1)
+    # print(f'obs={obs}')
+    # q_pos = np.array([-0.1,0.0])
+    # q_vel = np.array([0,0])
+    # env.set_state(q_pos, q_vel)
+    # obs, rewards, terminations, truncations, infos = env.step(0.0)
+    # print(f'obs={obs}')
     for global_step in range(total_timesteps):
         with torch.no_grad():
             actions = actor(torch.Tensor(obs).to(device))
@@ -119,7 +119,10 @@ if __name__ == "__main__":
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
         
         if terminations:
-            obs, _ = env.reset(seed=given_seed)
+            obs, _ = env.reset()
+            # env.set_state(q_pos, q_vel)
+            # obs, rewards, terminations, truncations, infos = env.step(0.0)
+            
         #env.render()
         
         print("observation:", next_obs, " action:", actions, ' CTG=', cost_to_go)

@@ -18,16 +18,20 @@ import torch.nn.functional as F
 
 
 from stable_baselines3.common.buffers import ReplayBuffer
+import csv
+from noise_injector import OrnsteinUhlenbeckActionNoise
 
 ENV_NAME = 'InvertedPendulum-v4'
+csv_file = 'cartpole_output.csv' #csv file to store training progress
 
-# ALGO LOGIC: initialize agent here:
+
 class QNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() + np.prod(env.action_space.shape), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, 1)
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() 
+                             + np.prod(env.action_space.shape), 400)
+        self.fc2 = nn.Linear(400, 300)
+        self.fc3 = nn.Linear(300, 1)
 
     def forward(self, x, a):
         x = torch.cat([x, a], 1)
@@ -40,9 +44,9 @@ class QNetwork(nn.Module):
 class Actor(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc_mu = nn.Linear(256, np.prod(env.action_space.shape))
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 400)
+        self.fc2 = nn.Linear(400, 300)
+        self.fc_mu = nn.Linear(300, np.prod(env.action_space.shape))
         # action rescaling
         self.register_buffer(
             "action_scale", torch.tensor((env.action_space.high - env.action_space.low) / 2.0, dtype=torch.float32)
@@ -83,6 +87,20 @@ def make_env(env_id, render_bool):
 
     return env
 
+def write_data_csv(data):
+    
+
+    # Write the data to a CSV file
+    with open(csv_file, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        
+        # Write the header only if the file is empty
+        if file.tell() == 0:
+            writer.writerow(['step', 'rewards', 'qf1_loss', 'actor_loss', 'observations', 'action'])
+        
+        # Write the data
+        writer.writerow(data)
+
 if __name__ == "__main__":
 
     given_seed = 1
@@ -90,19 +108,21 @@ if __name__ == "__main__":
     batch_size = 256
     total_timesteps = 100000 #default = 1000000
     learning_starts = 25000 #default = 25e3
+    episode_length = 120
     exploration_noise = 0.001
     policy_frequency = 2
-    tau = 0.005
-    gamma = 0.99
+    tau = 0.005 # weight to update the target network
+    gamma = 0.99 #discount factor
     learning_rate = 3e-5
     
-    exp_name = 'carpole_test'
+    exp_name = 'cartpole_ep_30'
     run_name = 'test'
+
     random.seed(given_seed)
     np.random.seed(given_seed)
     torch.manual_seed(given_seed)
     torch.backends.cudnn.deterministic = True
-
+    
     #reward function parameters
     
     # if GPU is to be used
@@ -114,20 +134,28 @@ if __name__ == "__main__":
     
     assert isinstance(env.action_space, gym.spaces.Box), "only continuous action space is supported"
 
+    #
     actor = Actor(env).to(device)
     qf1 = QNetwork(env).to(device)
+
     # load pretrained model.
-    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test/carpole_test.cleanrl_model")
+    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test/cartpole_ep_30.cleanrl_model")
     actor.load_state_dict(checkpoint[0])
     qf1.load_state_dict(checkpoint[1])
 
+    #target network 
     qf1_target = QNetwork(env).to(device)
     target_actor = Actor(env).to(device)
-    target_actor.load_state_dict(actor.state_dict())
+
+    #initalizing target  with the same weights
+    target_actor.load_state_dict(actor.state_dict()) 
     qf1_target.load_state_dict(qf1.state_dict())
+
+    #choose optimizer
     q_optimizer = optim.Adam(list(qf1.parameters()), lr=learning_rate)
     actor_optimizer = optim.Adam(list(actor.parameters()), lr=learning_rate)
 
+    #experience replay buffer
     env.observation_space.dtype = np.float32
     rb = ReplayBuffer(
         buffer_size,
@@ -139,45 +167,52 @@ if __name__ == "__main__":
 
     start_time = time.time()
 
-    # TRY NOT TO MODIFY: start the game
-    obs, _ = env.reset(seed=given_seed)
+    episode_t = 0 
+    cost = 0
+    obs, _ = env.reset()
+    noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(np.prod(env.action_space.shape)))
+
     for global_step in range(total_timesteps):
-        # ALGO LOGIC: put action logic here
+        
         if global_step < learning_starts:
             actions = np.array(env.action_space.sample())
             
         else:
             with torch.no_grad():
                 actions = actor(torch.Tensor(obs).to(device))
-                actions += torch.normal(0, actor.action_scale * exploration_noise)
+                actions += torch.Tensor(noise()).to(device) #torch.normal(0, actor.action_scale * exploration_noise)
                 actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
 
-        # TRY NOT TO MODIFY: execute the game and log data.
+        
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
         
         rewards = reward_function(obs, actions)
+        cost -=rewards 
         #print('step=', global_step, ' actions=', actions, ' rewards=', rewards,\
         #      ' obs=', next_obs, ' termination=', terminations, ' trunctions=', truncations)
 
-        # TRY NOT TO MODIFY: record rewards for plotting purposes
+        
         if "final_info" in infos:
             for info in infos["final_info"]:
                 #print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                 break
 
-        # TRY NOT TO MODIFY: save data to reply buffer; handle `final_observation`
+        # save data to replay buffer; handle `final_observation`
         real_next_obs = next_obs.copy()
 
         # if truncations:
         #     real_next_os = infos["final_observation"]
         rb.add(obs, real_next_obs, actions, rewards, terminations, infos)
 
-        # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
+        # reset observation
         obs = next_obs
 
         # ALGO LOGIC: training.
         if global_step > learning_starts:
+
+            #sample experience from replay buffer
             data = rb.sample(batch_size)
+
             with torch.no_grad():
                 next_state_actions = target_actor(data.next_observations)
                 qf1_next_target = qf1_target(data.next_observations, next_state_actions)
@@ -193,8 +228,10 @@ if __name__ == "__main__":
 
             if global_step % policy_frequency == 0:
                 actor_loss = -qf1(data.observations, actor(data.observations)).mean()
-                print('step=', global_step, ' rewards=', rewards, ' qf1_loss = ', qf1_loss.item(), \
-                      ' actor_loss = ', actor_loss.item(), ' observations=', obs, ' action=', actions)
+
+                print(f'step= {global_step} rewards= {rewards} qf1_loss = {qf1_loss.item()} '
+                        f'actor_loss = {actor_loss.item()} observations= {obs} action= {actions}')
+
                 actor_optimizer.zero_grad()
                 actor_loss.backward()
                 actor_optimizer.step()
@@ -208,16 +245,22 @@ if __name__ == "__main__":
             if global_step % 100 == 0:
                 
                 print("SPS:", int(global_step / (time.time() - start_time)))
+                # Data to write
+                write_data = [global_step, rewards, qf1_loss.item(), actor_loss.item(), obs, actions]
+                write_data_csv(write_data)
 
-
-        if abs(next_obs[0])>= 10:
+        episode_t = episode_t + 1
+        if abs(next_obs[0])>= 10 or episode_t == episode_length:
             print('resetting')
-            obs, _ = env.reset(seed=given_seed)
+            obs, _ = env.reset()
+            episode_t = 0
+            print(f'Cost = {cost}')
+            cost = 0
 
 
     save_model = True
     if save_model:
-        model_path = f"runs/{run_name}/{exp_name}.cleanrl_model"
+        model_path = f"../runs/{run_name}/{exp_name}.cleanrl_model"
         torch.save((actor.state_dict(), qf1.state_dict()), model_path)
         print(f"model saved to {model_path}")
 

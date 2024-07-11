@@ -18,12 +18,13 @@ import torch.nn.functional as F
 
 
 from stable_baselines3.common.buffers import ReplayBuffer
+from noise_injector import OrnsteinUhlenbeckActionNoise
 
 ENV_NAME = 'InvertedPendulum-v4'
 q = 10 # number of time history required. 
 nx = 4 #dim of state
 nu = 1 # dim of control
-nz = 2 # dim of measurements
+nz = 4 # dim of measurements
 nZ = q*nz + (q-1)*nu #dim of information state
 
 
@@ -32,9 +33,10 @@ nZ = q*nz + (q-1)*nu #dim of information state
 class QNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() + np.prod(env.action_space.shape), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, 1)
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() 
+                             + np.prod(env.action_space.shape), 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 1)
 
     def forward(self, x, a):
         x = torch.cat([x, a], 1)
@@ -47,9 +49,9 @@ class QNetwork(nn.Module):
 class Actor(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc_mu = nn.Linear(256, np.prod(env.action_space.shape))
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc_mu = nn.Linear(512, np.prod(env.action_space.shape))
         # action rescaling
         self.register_buffer(
             "action_scale", torch.tensor((env.action_space.high - env.action_space.low) / 2.0, dtype=torch.float32)
@@ -95,8 +97,8 @@ def make_env(env_id, render_bool):
 def information_state(prev_info_state, next_obs, control):
 
     info_state = np.zeros((nZ))
-    info_state[0:2] = next_obs[0:2]
-    info_state[2:q*nz] = prev_info_state[0:(q-1)*nz]
+    info_state[0:nz] = next_obs[0:nz]
+    info_state[nz:q*nz] = prev_info_state[0:(q-1)*nz]
 
     info_state[q*nz:q*nz+nu] = control
     info_state[q*nz+nu:nZ] = prev_info_state[q*nz:q*nz + (q-2)*nu]
@@ -110,6 +112,7 @@ if __name__ == "__main__":
     batch_size = 256
     total_timesteps = 500000 #default = 1000000
     learning_starts = 25000 #default = 25e3
+    episode_length = 1000
     exploration_noise = 0.001
     policy_frequency = 2
     tau = 0.005
@@ -137,9 +140,9 @@ if __name__ == "__main__":
     actor = Actor(env).to(device)
     qf1 = QNetwork(env).to(device)
     # load pretrained model.
-    checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test_po/carpole_test_po_q_10.cleanrl_model")
-    actor.load_state_dict(checkpoint[0])
-    qf1.load_state_dict(checkpoint[1])
+    #checkpoint = torch.load("/home/naveed/Documents/RL/naveed_codes/runs/test_po/carpole_test_po_q_10.cleanrl_model")
+    #actor.load_state_dict(checkpoint[0])
+    #qf1.load_state_dict(checkpoint[1])
 
     qf1_target = QNetwork(env).to(device)
     target_actor = Actor(env).to(device)
@@ -163,6 +166,7 @@ if __name__ == "__main__":
 
     # TRY NOT TO MODIFY: start the game
     obs, _ = env.reset(seed=given_seed)
+    
     prev_actions = np.array([0])
     info_state = np.zeros((nZ))
     #initial transient
@@ -173,6 +177,10 @@ if __name__ == "__main__":
 
         #print('info_state = ', info_state, ' actions=', actions)
     
+    episode_t = 0 
+    cost = 0
+    noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(np.prod(env.action_space.shape)))
+
     for global_step in range(total_timesteps):
         # ALGO LOGIC: put action logic here
 
@@ -184,13 +192,14 @@ if __name__ == "__main__":
         else:
             with torch.no_grad():
                 actions = actor(torch.Tensor(info_state).to(device))
-                actions += torch.normal(0, actor.action_scale * exploration_noise)
+                actions += torch.Tensor(noise()).to(device) #torch.normal(0, actor.action_scale * exploration_noise)
                 actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
 
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
         rewards = reward_function(info_state, actions)
-
+        cost -=rewards 
+        
         info_state = information_state(prev_info_state, next_obs, actions)
 
         
@@ -248,10 +257,13 @@ if __name__ == "__main__":
                 
                 print("SPS:", int(global_step / (time.time() - start_time)))
 
-
-        if abs(next_obs[0])>= 100:
+        episode_t = episode_t + 1
+        if abs(next_obs[0])>= 10 or episode_t == episode_length:
             print('resetting')
-            obs, _ = env.reset(seed=given_seed)
+            obs, _ = env.reset()
+            episode_t = 0
+            print(f'Cost = {cost}')
+            cost = 0
 
 
     save_model = True
