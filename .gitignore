@@ -1,4 +1,5 @@
 *.mp4
+*.meta.json
 
 # Ignore other common files and directories
 *.log
