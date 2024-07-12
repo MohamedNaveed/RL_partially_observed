@@ -2,13 +2,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 # Read the CSV file
-csv_file = '../data/cartpole_po_output.csv'  # Replace with your CSV file path
+csv_file = '../data/cartpole_po_nz_2_q_2.csv'  # Replace with your CSV file path
 data = pd.read_csv(csv_file)
 
 # Display the first few rows of the dataframe to verify
 print(data.head())
 idx = [0,data['qf1_loss'].size]
-steps = np.arange(data['qf1_loss'].size)
+steps = np.arange(data['qf1_loss'].size) * (data['step'][1] - data['step'][0])
 # Ensure 'global_step' and 'training_loss' (or equivalent) columns exist
 if 'step' in data.columns and 'qf1_loss' in data.columns:
     # Plot the training loss

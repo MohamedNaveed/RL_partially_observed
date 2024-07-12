@@ -10,13 +10,14 @@ import torch.nn.functional as F
 
 
 ENV_NAME = 'InvertedPendulum-v4'
-exp_name = 'carpole_test_po_q_10'
+exp_name = 'carpole_test_po_q_2_nz_2'
 run_name = 'test_po'
+record_video_bool = True
 
-q = 10 # number of time history required. 
+q = 2 # number of time history required. 
 nx = 4 #dim of state
 nu = 1 # dim of control
-nz = 4 # dim of measurements
+nz = 2 # dim of measurements
 nZ = q*nz + (q-1)*nu #dim of information state
 
 
@@ -62,7 +63,7 @@ def make_env(env_id, render_bool, record_video=False):
 
     if record_video:
         env = gym.make('InvertedPendulum-v4',render_mode = "rgb_array")
-        env = gym.wrappers.RecordVideo(env, f"../videos/{run_name}")
+        env = gym.wrappers.RecordVideo(env, f"../videos/{run_name}", name_prefix= exp_name)
 
     elif render_bool: 
         env = gym.make('InvertedPendulum-v4',render_mode = "human")
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     given_seed = 42
     buffer_size = int(1e6)
     batch_size = 256
-    total_timesteps = 2000
+    total_timesteps = 500
     gamma = 0.99
 
     random.seed(given_seed)
@@ -108,7 +109,7 @@ if __name__ == "__main__":
 
     print(f"Using {device}");
 
-    env = make_env(ENV_NAME, render_bool = True, record_video=True)
+    env = make_env(ENV_NAME, render_bool = True, record_video=record_video_bool)
     assert isinstance(env.action_space, gym.spaces.Box), "only continuous action space is supported"
 
     actor = Actor(env).to(device)
