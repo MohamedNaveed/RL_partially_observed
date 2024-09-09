@@ -118,6 +118,7 @@ def write_data_csv(data):
         
         # Write the data
         writer.writerow(data)
+
 if __name__ == "__main__":
 
     given_seed = 1
@@ -200,7 +201,7 @@ if __name__ == "__main__":
         prev_info_state = info_state
 
         if global_step < learning_starts:
-            actions = np.array(env.action_space.sample())
+            actions = np.array(env.action_space.sample()) #choose random action
             
         else:
             with torch.no_grad():
@@ -268,7 +269,7 @@ if __name__ == "__main__":
                 write_data_csv(write_data)
 
         episode_t = episode_t + 1
-        if abs(next_obs[0])>= 10 or episode_t == episode_length:
+        if abs(next_obs[0])>= 10 or episode_t == episode_length: #reset environment
             print('resetting')
             obs, _ = env.reset()
             
