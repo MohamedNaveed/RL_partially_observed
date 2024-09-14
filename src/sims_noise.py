@@ -7,11 +7,11 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import pandas as pd
 
 ENV_NAME = 'InvertedPendulum-v4'
-csv_file = 'sac_cartpole_output.csv' #csv file to store training progress
-exp_name = 'sac_cartpole_ep_30'
+
+exp_name = 'sac_cartpole_ep_30_epsi20'
 run_name = 'sac'
 
 class SoftQNetwork(nn.Module):
@@ -32,7 +32,6 @@ class SoftQNetwork(nn.Module):
 LOG_STD_MAX = 2
 LOG_STD_MIN = -5
 MAX_OPEN_LOOP_CONTROL = 2.5
-epsilon = 0.2
 
 class Actor(nn.Module):
     def __init__(self, env):
@@ -62,7 +61,7 @@ class Actor(nn.Module):
     def get_action(self, x):
         mean, log_std = self(x)
 
-        print(f"log_std = {log_std.exp()}")
+        #print(f"log_std = {log_std.exp()}")
         std = log_std.exp() 
         normal = torch.distributions.Normal(mean, std)
         #x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
@@ -96,18 +95,84 @@ def make_env(env_id, render_bool, record_video=False):
 
     return env
 
+def reward_function(observation, action):
+    diag_q = [10,40,10,10]; 
+    r = 0.5;
+    #print("observation:", observation)
+    #print("observation:", observation[0,1])
+    cost = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
+                diag_q[2]*(observation[2]**2) + diag_q[3]*(observation[3]**2) +\
+                r*(action**2)
 
-if __name__ == "__main__":
+    return -cost
 
-    given_seed = 1
+def terminal_cost(observation):
+
+    diag_q = [1000,4000,1000,1000]; 
+    
+    cost = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
+                diag_q[2]*(observation[2]**2) + diag_q[3]*(observation[3]**2)
+
+    return -cost
+
+# Add this function to save mean and variance of cost and error
+def save_to_csv(epsilon, cost_mean, cost_var, error_mean, error_var, csv_file):
+    # Create a DataFrame to store the results
+    df = pd.DataFrame({
+        'epsilon': [epsilon],
+        'cost_mean': [cost_mean],
+        'cost_variance': [cost_var],
+        'error_mean': [error_mean],
+        'error_variance': [error_var]
+    })
+
+    # Append the data to the CSV file
+    df.to_csv(csv_file, mode='a', index=False, header=not pd.io.common.file_exists(csv_file))
+
+def run_sample(epsilon, iter, actor, qf1):
+
+    given_seed = iter
     total_timesteps = 30
-    gamma = 0.99
 
     random.seed(given_seed)
     np.random.seed(given_seed)
     torch.manual_seed(given_seed)
     torch.backends.cudnn.deterministic = True
+    obs, _ = env.reset(seed=given_seed)
+    cost = 0
+
+    for global_step in range(total_timesteps):
+        with torch.no_grad():
+            actions, _, _ = actor.get_action(torch.Tensor(obs).to(device))
+            cost_to_go = -qf1(torch.Tensor(obs).to(device), actions).item()
+            actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
+
+            #adding control noise
+            w = epsilon*np.random.normal(0.0,1.0)*MAX_OPEN_LOOP_CONTROL
+            actions = actions + w
+            actions = actions.clip(env.action_space.low, env.action_space.high)
+
+        next_obs, rewards, terminations, truncations, infos = env.step(actions)
+        rewards = reward_function(obs, actions)
+        cost -=rewards
+
+        if terminations:
+            obs, _ = env.reset()
+            # env.set_state(q_pos, q_vel)
+            # obs, rewards, terminations, truncations, infos = env.step(0.0)
+            
+        #env.render()
+        
+        #print("observation:", obs, " action:", actions, ' CTG=', cost_to_go, ' w = ', w)
+        
+        obs = next_obs
     
+    cost -= terminal_cost(obs)
+    error = np.linalg.norm(obs)
+    #print(f"cost = {cost} error = {error}")
+    return cost[0], error
+
+if __name__ == "__main__":
     
     # if GPU is to be used
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -126,42 +191,42 @@ if __name__ == "__main__":
     actor.eval()
     qf1.eval() 
 
-    obs, _ = env.reset(seed=10)
-    # print(f'obs={obs}')
-    # q_pos = np.array([-0.1,0.0])
-    # q_vel = np.array([0,0])
-    # env.set_state(q_pos, q_vel)
-    # obs, rewards, terminations, truncations, infos = env.step(0.0)
-    #print(f'obs={obs}')
-    for global_step in range(total_timesteps):
-        with torch.no_grad():
-            actions, _, _ = actor.get_action(torch.Tensor(obs).to(device))
-            cost_to_go = -qf1(torch.Tensor(obs).to(device), actions).item()
-            actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
-
-            #adding control noise
-            w = epsilon*np.random.normal(0.0,1.0)*MAX_OPEN_LOOP_CONTROL
-            actions = actions + w
-            actions = actions.clip(env.action_space.low, env.action_space.high)
-
-        next_obs, rewards, terminations, truncations, infos = env.step(actions)
-        
-        if terminations:
-            obs, _ = env.reset()
-            # env.set_state(q_pos, q_vel)
-            # obs, rewards, terminations, truncations, infos = env.step(0.0)
-            
-        #env.render()
-        
-        print("observation:", obs, " action:", actions, ' CTG=', cost_to_go, ' w = ', w)
-        
-        obs = next_obs
+    epsi_range = np.linspace(0.0,0.1,11)
+    epsi_range = np.append(epsi_range, np.linspace(.2,0.5,4), axis=0)
+    mc_runs = 500
     
-    with torch.no_grad():
-        actions, _, _ = actor.get_action(torch.Tensor(obs).to(device))
-        cost_to_go = -qf1(torch.Tensor(obs).to(device), actions).item()
-        actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
-    print("observation:", obs, " action:", actions, ' CTG=', cost_to_go)
+
+    print("Epsilon range:", epsi_range)
+
+    # Clear the CSV file before running (optional)
+    csv_file = 'sac_cartpole_monte_carlo_epsi20.csv'
+    with open(csv_file, 'a') as f:
+        f.write('epsilon,cost_mean,cost_variance,error_mean,error_variance\n')
+
+    for epsilon in epsi_range:
+
+        cost = np.zeros(mc_runs)
+        error = np.zeros(mc_runs)
+
+        for iter in range(mc_runs):
+
+            cost_iter, error_iter = run_sample(epsilon, iter, actor, qf1)
+            cost[iter] = cost_iter
+            error[iter] = error_iter
+
+        # Calculate the mean and variance of cost and error
+        cost_mean = np.mean(cost)
+        cost_var = np.var(cost)
+        error_mean = np.mean(error)
+        error_var = np.var(error)
+
+        print(f"epsilon = {epsilon}, cost_mean = {cost_mean}, cost_var = {cost_var}, \
+              error_mean = {error_mean}, error_var = {error_var}")
+        # Save the results to a CSV file
+        save_to_csv(epsilon, cost_mean, cost_var, error_mean, error_var, csv_file)
+
+                
+        
 
     env.close()
     
