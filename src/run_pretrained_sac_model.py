@@ -32,7 +32,7 @@ class SoftQNetwork(nn.Module):
 LOG_STD_MAX = 2
 LOG_STD_MIN = -5
 MAX_OPEN_LOOP_CONTROL = 2.5
-epsilon = 0.2
+epsilon = 0
 
 class Actor(nn.Module):
     def __init__(self, env):
@@ -133,12 +133,14 @@ if __name__ == "__main__":
     # env.set_state(q_pos, q_vel)
     # obs, rewards, terminations, truncations, infos = env.step(0.0)
     #print(f'obs={obs}')
+    action_vec = []
     for global_step in range(total_timesteps):
         with torch.no_grad():
             actions, _, _ = actor.get_action(torch.Tensor(obs).to(device))
+            
             cost_to_go = -qf1(torch.Tensor(obs).to(device), actions).item()
             actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
-
+            action_vec.append(actions[0])
             #adding control noise
             w = epsilon*np.random.normal(0.0,1.0)*MAX_OPEN_LOOP_CONTROL
             actions = actions + w
@@ -162,6 +164,6 @@ if __name__ == "__main__":
         cost_to_go = -qf1(torch.Tensor(obs).to(device), actions).item()
         actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
     print("observation:", obs, " action:", actions, ' CTG=', cost_to_go)
-
+    print("actions vec =", action_vec)
     env.close()
     

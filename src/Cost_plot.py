@@ -9,11 +9,11 @@ from random import uniform
 import matplotlib.pyplot as pylab
 import matplotlib.colors as mcolors
 
-params = {'axes.labelsize':16,
+params = {'axes.labelsize':12,
             'font.size':12,
-            'legend.fontsize':14,
-            'xtick.labelsize':14,
-            'ytick.labelsize':14,
+            'legend.fontsize':12,
+            'xtick.labelsize':12,
+            'ytick.labelsize':12,
             'text.usetex':True,
             'figure.figsize':[4.5,3]}
 pylab.rcParams.update(params)
@@ -33,7 +33,7 @@ if __name__=='__main__':
     #filenames
     if PLOT_RED:
         
-        filename = "/home/naveed/Documents/RL/naveed_codes/src/sac_cartpole_monte_carlo_epsi0.csv"
+        filename = "/home/naveed/Documents/RL/naveed_codes/data/sac_cartpole/sac_cartpole_monte_carlo_epsi0.csv"
 
         file_red = open(filename,"r")
 
@@ -62,7 +62,7 @@ if __name__=='__main__':
     
     if PLOT_BLUE:
         
-        filename_blue = "/home/naveed/Documents/RL/naveed_codes/src/sac_cartpole_monte_carlo_epsi20.csv"
+        filename_blue = "/home/naveed/Documents/RL/naveed_codes/data/sac_cartpole/sac_cartpole_monte_carlo_epsi20.csv"
         
 
         file_blue = open(filename_blue,"r")
@@ -91,7 +91,7 @@ if __name__=='__main__':
 
     if PLOT_GREEN:
         
-        filename_green = "/home/naveed/Documents/RL/naveed_codes/src/sac_cartpole_monte_carlo_epsi10.csv"
+        filename_green = "/home/naveed/Documents/RL/naveed_codes/data/sac_cartpole/sac_cartpole_monte_carlo_epsi10.csv"
 
         file_green = open(filename_green,"r")
 
@@ -117,10 +117,6 @@ if __name__=='__main__':
 
         cost_std_green = np.sqrt(cost_var_green)
 
-
-
-    pylab.grid(alpha=0.2)
-
     #min cost
     if PLOT_BLUE and PLOT_GREEN and PLOT_RED:
 
@@ -145,51 +141,51 @@ if __name__=='__main__':
         Min_cost = cost_blue[0]
 
     Min_cost = 1 #normalization
-    epsilon_scale_factor = 1
+    epsilon_scale_factor = 100
 
     #plotting
     if PLOT_RED:
         pylab.fill_between(epsilon_scale_factor*epsilon_red[Noise_level[0]:Noise_level[1]+1],
                         (cost_red[Noise_level[0]:Noise_level[1]+1]-cost_std_red[Noise_level[0]:Noise_level[1]+1])/Min_cost,
                         (cost_red[Noise_level[0]:Noise_level[1]+1]+cost_std_red[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        alpha=0.35,linewidth=0,color='r')
+                        alpha=0.35,linewidth=0,color='#ff7f0e')
 
         pylab.plot(epsilon_scale_factor*epsilon_red[Noise_level[0]:Noise_level[1]+1],
                     cost_red[Noise_level[0]:Noise_level[1]+1]/Min_cost,
-                    linewidth=3,marker='',markersize=10,color='r',label=r"SAC $\epsilon = 0\%$")
+                    linewidth=3,marker='.',markersize=10,color='#ff7f0e',label=r"SAC $\epsilon = 0\%$")
     
 
 
     if PLOT_GREEN:
-        pylab.fill_between(epsilon_green[Noise_level[0]:Noise_level[1]+1],
+        pylab.fill_between(epsilon_scale_factor*epsilon_green[Noise_level[0]:Noise_level[1]+1],
                         (cost_green[Noise_level[0]:Noise_level[1]+1] - cost_std_green[Noise_level[0]:Noise_level[1]+1])/Min_cost,
                         (cost_green[Noise_level[0]:Noise_level[1]+1] + cost_std_green[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        alpha=0.25,linewidth=0,color='#34DD03')
+                        alpha=0.25,linewidth=0,color='#2ca02c')
 
-        pylab.plot(epsilon_green[Noise_level[0]:Noise_level[1]+1],cost_green[Noise_level[0]:Noise_level[1]+1]/Min_cost,
-                   linewidth=3,linestyle='--',marker='.',markersize=10,color='#34DD03',label=r"SAC $\epsilon = 10\%$")
+        pylab.plot(epsilon_scale_factor*epsilon_green[Noise_level[0]:Noise_level[1]+1],cost_green[Noise_level[0]:Noise_level[1]+1]/Min_cost,
+                   linewidth=3,linestyle='--',marker='',markersize=10,color='#2ca02c',label=r"SAC $\epsilon = 10\%$")
         
     if PLOT_BLUE:
         pylab.fill_between(epsilon_scale_factor*epsilon_blue[Noise_level[0]:Noise_level[1]+1],
                         (cost_blue[Noise_level[0]:Noise_level[1]+1]-cost_std_blue[Noise_level[0]:Noise_level[1]+1])/Min_cost,
                         (cost_blue[Noise_level[0]:Noise_level[1]+1]+cost_std_blue[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        alpha=0.25,linewidth=0,color='b')
+                        alpha=0.25,linewidth=0,color='#1f77b4')
 
         pylab.plot(epsilon_scale_factor*epsilon_blue[Noise_level[0]:Noise_level[1]+1],
                     cost_blue[Noise_level[0]:Noise_level[1]+1]/Min_cost,
-                    linewidth=4,linestyle='dotted',marker='.',markersize=10,color='b', label=r"SAC $\epsilon = 20\%$")
+                    linewidth=3,linestyle=':',marker='',markersize=10,color='#1f77b4', label=r"SAC $\epsilon = 20\%$")
 
 
     ##legends
     #if PLOT_BLUE and PLOT_RED and PLOT_GREEN:
-    legend = pylab.legend()
+    legend = pylab.legend(loc= 'upper left')
     
-    #pylab.ylim(50,175)
+    pylab.ylim(-0.2,8)
     #pylab.ylim(600,1150)
     #pylab.ylim(1500,4000)
     #pylab.xlim(-0.01,1.0)
-    pylab.xlim(-0.01,0.51)
-    pylab.xticks([0, 0.1, 0.2, 0.3, 0.4, 0.5])
+    pylab.xlim(-1,31)
+    pylab.xticks([0, 5, 10, 20, 30])
     pylab.grid(alpha=0.2)
     #pylab.xlim(-.05,1.6)
 
@@ -204,13 +200,14 @@ if __name__=='__main__':
     #frame.set_facecolor('0.9')
     #frame.set_edgecolor('0.9')
 
-    pylab.xlabel(r'epsilon')
+    pylab.xlabel(r'Std dev of process noise (\% of max. control)')
     #pylab.ylabel(r'$J/\bar{J}$')
-    pylab.ylabel(r'2-norm error')
+    pylab.ylabel(r'L2-norm of terminal state error')
     #pylab.title('Cost vs error percentage for 3 agent(s) ')
 
     pylab.savefig('/home/naveed/Documents/RL/naveed_codes/plots/'+'cartpole_sac.pdf', format='pdf',bbox_inches='tight',pad_inches = 0.02) #1- TLQR, 2- TLQR replan, 3 - MPC, 4 - MPC_fast
     #pylab.savefig('/home/naveed/Dropbox/Research/Data/AISTATS/'+'cost_car_LQR_PFC_comp.pdf', format='pdf',bbox_inches='tight',pad_inches = 0.02)
+    
     if PLOT_RED:
         file_red.close()
 

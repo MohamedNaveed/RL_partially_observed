@@ -11,6 +11,7 @@ import pandas as pd
 
 ENV_NAME = 'InvertedPendulum-v4'
 
+csv_file = '/home/naveed/Documents/RL/naveed_codes/data/sac_cartpole/test.csv'
 exp_name = 'sac_cartpole_ep_30_epsi20'
 run_name = 'sac'
 
@@ -64,8 +65,8 @@ class Actor(nn.Module):
         #print(f"log_std = {log_std.exp()}")
         std = log_std.exp() 
         normal = torch.distributions.Normal(mean, std)
-        #x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
-        x_t = mean #makeing the action deterministic
+        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        #x_t = mean #makeing the action deterministic
         y_t = torch.tanh(x_t)
         action = y_t * self.action_scale + self.action_bias
         log_prob = normal.log_prob(x_t)
@@ -155,7 +156,7 @@ def run_sample(epsilon, iter, actor, qf1):
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
         rewards = reward_function(obs, actions)
         cost -=rewards
-
+        #print(f"i = {global_step} cost = {rewards}")
         if terminations:
             obs, _ = env.reset()
             # env.set_state(q_pos, q_vel)
@@ -193,13 +194,14 @@ if __name__ == "__main__":
 
     epsi_range = np.linspace(0.0,0.1,11)
     epsi_range = np.append(epsi_range, np.linspace(.2,0.5,4), axis=0)
+    #epsi_range = np.linspace(0,0,1)
     mc_runs = 500
     
 
     print("Epsilon range:", epsi_range)
 
     # Clear the CSV file before running (optional)
-    csv_file = 'sac_cartpole_monte_carlo_epsi20.csv'
+    
     with open(csv_file, 'a') as f:
         f.write('epsilon,cost_mean,cost_variance,error_mean,error_variance\n')
 

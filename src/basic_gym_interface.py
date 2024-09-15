@@ -30,9 +30,11 @@ obs, _ = env.reset()
 #env.observation_space = gym.spaces.Box(-np.inf, np.inf, (5,), np.float64)
 
 #print('env.observation_space=', env.observation_space,)
-q_pos = np.array([0,np.pi/4])
+q_pos = np.array([0,0])
 q_vel = np.array([0,0])
 env.set_state(q_pos, q_vel)
+observation, reward, termination, truncated, info = env.step(0)
+print("step:", 0, "observation:", observation," reward:", reward, " termination", termination, " truncated:", truncated)
 
 for i in range(100):
     action =  env.action_space.sample()
