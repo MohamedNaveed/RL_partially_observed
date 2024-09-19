@@ -24,4 +24,4 @@ For more information about information-state check out my work here: https://arx
 ![Demo](videos/sac/stochastic_policy.gif)
 
 ## SAC performance under noise. 
-![](plots/cartpole_sac.pdf)
+![See plot](plots/cartpole_sac.pdf)
