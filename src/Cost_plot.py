@@ -22,18 +22,19 @@ pylab.rcParams.update(params)
 PLOT_RED = True #True #False #
 PLOT_BLUE = True
 PLOT_GREEN = True
-
+PLOT_D2C = True
+PLOT_D2C_REPLAN = True
 
 Noise_level = [0,100] #file index 1.6 - 64 1.0 - 54 .4-42
 
-epsilonList = [0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5]
+epsilonList = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5]
 
 if __name__=='__main__':
 
     #filenames
     if PLOT_RED:
         
-        filename = "/home/naveed/Documents/RL/naveed_codes/data/sac_cartpole/sac_cartpole_monte_carlo_epsi0.csv"
+        filename = "../data/sac_cartpole/sac_cartpole_monte_carlo_epsi0_v1.csv"
 
         file_red = open(filename,"r")
 
@@ -62,7 +63,7 @@ if __name__=='__main__':
     
     if PLOT_BLUE:
         
-        filename_blue = "/home/naveed/Documents/RL/naveed_codes/data/sac_cartpole/sac_cartpole_monte_carlo_epsi20.csv"
+        filename_blue = "../data/sac_cartpole/sac_cartpole_monte_carlo_epsi100_v1.csv"
         
 
         file_blue = open(filename_blue,"r")
@@ -91,7 +92,7 @@ if __name__=='__main__':
 
     if PLOT_GREEN:
         
-        filename_green = "/home/naveed/Documents/RL/naveed_codes/data/sac_cartpole/sac_cartpole_monte_carlo_epsi10.csv"
+        filename_green = "../data/sac_cartpole/sac_cartpole_monte_carlo_epsi50_v1.csv"
 
         file_green = open(filename_green,"r")
 
@@ -117,31 +118,88 @@ if __name__=='__main__':
 
         cost_std_green = np.sqrt(cost_var_green)
 
-    #min cost
-    if PLOT_BLUE and PLOT_GREEN and PLOT_RED:
+    if PLOT_D2C:
+        path = "/home/naveed/Documents/RL/D2C_codes/D2C-2.0/experiments/cartpole/exp_13/"
+        filename_d2c = path + "cartpole_testing_data.txt"
 
-        Min_cost = min(cost_blue[0], cost_red[0], cost_green[0])
+        file_d2c = open(filename_d2c,"r")
 
-    elif PLOT_GREEN and PLOT_RED:
+        lines = file_d2c.read().splitlines()
 
-        Min_cost = min(cost_red[0], cost_green[0])
+        for i in range(len(lines)): #len(lines)
+            data = lines[i].split(',')
+
+            if data[0] != "epsilon":
+
+                if i == 1:
+                    epsilon_d2c = float(data[0])
+                    cost_d2c = float(data[1])
+                    cost_var_d2c = float(data[2])
+
+                else:
+                    if float(data[0]) in epsilonList:
+                        epsilon_d2c = np.append(epsilon_d2c, float(data[0]))
+                        cost_d2c = np.append(cost_d2c, float(data[1]))
+                        cost_var_d2c = np.append(cost_var_d2c, float(data[2]))
 
 
-    elif PLOT_BLUE and PLOT_GREEN:
-        Min_cost = min(cost_blue[0], cost_green[0])
 
-    elif PLOT_BLUE and PLOT_RED:
-        Min_cost = min(cost_blue[0], cost_red[0])
+        cost_std_d2c = np.sqrt(cost_var_d2c)
+
+    if PLOT_D2C_REPLAN:
+        
+        filename_d2c_replan = path + "cartpole_testing_data_replan.txt"
+
+        file_d2c_replan = open(filename_d2c_replan,"r")
+
+        lines = file_d2c_replan.read().splitlines()
+
+        for i in range(len(lines)): #len(lines)
+            data = lines[i].split(',')
+
+            if data[0] != "epsilon":
+
+                if i == 1:
+                    epsilon_d2c_replan = float(data[0])
+                    cost_d2c_replan = float(data[1])
+                    cost_var_d2c_replan = float(data[2])
+
+                else:
+                    if float(data[0]) in epsilonList:
+                        epsilon_d2c_replan = np.append(epsilon_d2c_replan, float(data[0]))
+                        cost_d2c_replan = np.append(cost_d2c_replan, float(data[1]))
+                        cost_var_d2c_replan = np.append(cost_var_d2c_replan, float(data[2]))
 
 
-    elif PLOT_RED:
-        Min_cost = cost_red[0]
 
-    elif PLOT_BLUE:
-        Min_cost = cost_blue[0]
+        cost_std_d2c_replan = np.sqrt(cost_var_d2c_replan)
+
+
+    # #min cost
+    # if PLOT_BLUE and PLOT_GREEN and PLOT_RED:
+
+    #     Min_cost = min(cost_blue[0], cost_red[0], cost_green[0])
+
+    # elif PLOT_GREEN and PLOT_RED:
+
+    #     Min_cost = min(cost_red[0], cost_green[0])
+
+
+    # elif PLOT_BLUE and PLOT_GREEN:
+    #     Min_cost = min(cost_blue[0], cost_green[0])
+
+    # elif PLOT_BLUE and PLOT_RED:
+    #     Min_cost = min(cost_blue[0], cost_red[0])
+
+
+    # elif PLOT_RED:
+    #     Min_cost = cost_red[0]
+
+    # elif PLOT_BLUE:
+    #     Min_cost = cost_blue[0]
 
     Min_cost = 1 #normalization
-    epsilon_scale_factor = 100
+    epsilon_scale_factor = 20
 
     #plotting
     if PLOT_RED:
@@ -175,17 +233,35 @@ if __name__=='__main__':
                     cost_blue[Noise_level[0]:Noise_level[1]+1]/Min_cost,
                     linewidth=3,linestyle=':',marker='',markersize=10,color='#1f77b4', label=r"SAC $\epsilon = 20\%$")
 
+    if PLOT_D2C:
+        pylab.fill_between(epsilon_scale_factor*epsilon_d2c[Noise_level[0]:Noise_level[1]+1],
+                        (cost_d2c[Noise_level[0]:Noise_level[1]+1]-cost_std_d2c[Noise_level[0]:Noise_level[1]+1])/Min_cost,
+                        (cost_d2c[Noise_level[0]:Noise_level[1]+1]+cost_std_d2c[Noise_level[0]:Noise_level[1]+1])/Min_cost,
+                        alpha=0.25,linewidth=0,color='#9467bd')
 
+        pylab.plot(epsilon_scale_factor*epsilon_d2c[Noise_level[0]:Noise_level[1]+1],
+                    cost_d2c[Noise_level[0]:Noise_level[1]+1]/Min_cost,
+                    linewidth=3,linestyle=':',marker='.',markersize=10,color='#9467bd', label=r"D2C")
+    
+    if PLOT_D2C_REPLAN:
+        pylab.fill_between(epsilon_scale_factor*epsilon_d2c_replan[Noise_level[0]:Noise_level[1]+1],
+                        (cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]-cost_std_d2c_replan[Noise_level[0]:Noise_level[1]+1])/Min_cost,
+                        (cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]+cost_std_d2c_replan[Noise_level[0]:Noise_level[1]+1])/Min_cost,
+                        alpha=0.25,linewidth=0,color='#d62728')
+
+        pylab.plot(epsilon_scale_factor*epsilon_d2c_replan[Noise_level[0]:Noise_level[1]+1],
+                    cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]/Min_cost,
+                    linewidth=3,marker='',markersize=10,color='#d62728', label="MPC \n (D2C Replan)")
     ##legends
     #if PLOT_BLUE and PLOT_RED and PLOT_GREEN:
-    legend = pylab.legend(loc= 'upper left')
+    legend = pylab.legend(loc= 'upper center')
     
-    pylab.ylim(-0.2,8)
+    pylab.ylim(-0.2,15)
     #pylab.ylim(600,1150)
     #pylab.ylim(1500,4000)
     #pylab.xlim(-0.01,1.0)
-    pylab.xlim(-1,31)
-    pylab.xticks([0, 5, 10, 20, 30])
+    pylab.xlim(-1,101)
+    pylab.xticks([0, 10, 20, 40, 60, 80, 100])
     pylab.grid(alpha=0.2)
     #pylab.xlim(-.05,1.6)
 
@@ -205,7 +281,7 @@ if __name__=='__main__':
     pylab.ylabel(r'L2-norm of terminal state error')
     #pylab.title('Cost vs error percentage for 3 agent(s) ')
 
-    pylab.savefig('/home/naveed/Documents/RL/naveed_codes/plots/'+'cartpole_sac.pdf', format='pdf',bbox_inches='tight',pad_inches = 0.02) #1- TLQR, 2- TLQR replan, 3 - MPC, 4 - MPC_fast
+    pylab.savefig('../plots/'+'cartpole_sac_v1.pdf', format='pdf',bbox_inches='tight',pad_inches = 0.02) #1- TLQR, 2- TLQR replan, 3 - MPC, 4 - MPC_fast
     #pylab.savefig('/home/naveed/Dropbox/Research/Data/AISTATS/'+'cost_car_LQR_PFC_comp.pdf', format='pdf',bbox_inches='tight',pad_inches = 0.02)
     
     if PLOT_RED:
@@ -217,3 +293,9 @@ if __name__=='__main__':
 
     if PLOT_GREEN:
         file_green.close()
+
+    if PLOT_D2C:
+        file_d2c.close()
+
+    if PLOT_D2C_REPLAN:
+        file_d2c_replan.close()

@@ -3,7 +3,6 @@ from gymnasium.wrappers import RescaleAction
 import numpy as np
 import random
 import time
-from distutils.util import strtobool
 
 import torch
 import torch.nn as nn
@@ -15,16 +14,17 @@ import csv
 
 
 ENV_NAME = 'InvertedPendulum-v4'
-csv_file = 'sac_cartpole_output.csv' #csv file to store training progress
-exp_name = 'sac_cartpole_ep_120'
+csv_file = 'sac_cartpole_output_30_v1.csv' #csv file to store training progress
+exp_name = 'sac_cartpole_ep_30_v1'
 run_name = 'sac'
 
 class SoftQNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() + np.prod(env.action_space.shape), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, 1)
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() 
+                             + np.prod(env.action_space.shape), 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 1)
 
     def forward(self, x, a):
         x = torch.cat([x, a], 1)
@@ -41,10 +41,10 @@ LOG_STD_MIN = -5
 class Actor(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc_mean = nn.Linear(256, np.prod(env.action_space.shape))
-        self.fc_logstd = nn.Linear(256, np.prod(env.action_space.shape))
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc_mean = nn.Linear(512, np.prod(env.action_space.shape))
+        self.fc_logstd = nn.Linear(512, np.prod(env.action_space.shape))
         # action rescaling
         self.register_buffer(
             "action_scale", torch.tensor((env.action_space.high - env.action_space.low) / 2.0, dtype=torch.float32)
@@ -69,6 +69,8 @@ class Actor(nn.Module):
         normal = torch.distributions.Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
         y_t = torch.tanh(x_t)
+        device = "cuda"
+        self.action_scale = torch.Tensor(np.array([30.0])).to(device)
         action = y_t * self.action_scale + self.action_bias
         log_prob = normal.log_prob(x_t)
         # Enforcing Action Bound
@@ -79,8 +81,8 @@ class Actor(nn.Module):
         return action, log_prob, mean
 
 def reward_function(observation, action):
-    diag_q = [1,10,1,1]; 
-    r = 1;
+    diag_q = [10,10,10,10]; 
+    r = 0.005
     #print("observation:", observation)
     #print("observation:", observation[0,1])
     cost = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
@@ -97,8 +99,8 @@ def make_env(env_id, render_bool):
     else:
         env = gym.make('InvertedPendulum-v4')
 
-    min_action = -20
-    max_action = 20
+    min_action = -30
+    max_action = 30
     env = RescaleAction(env, min_action=min_action, max_action=max_action)
     env.reset()
 
@@ -113,7 +115,7 @@ def write_data_csv(data):
         
         # Write the header only if the file is empty
         if file.tell() == 0:
-            writer.writerow(['step', 'rewards', 'qf1_loss', 'actor_loss', 'observations', 'action'])
+            writer.writerow(['step', 'rewards', 'qf_loss', 'actor_loss', 'observations', 'action'])
         
         # Write the data
         writer.writerow(data)
@@ -123,16 +125,19 @@ if __name__ == "__main__":
     given_seed = 1
     buffer_size = int(1e6)
     batch_size = 256
-    total_timesteps = 500000 #default = 1000000
+    total_timesteps = 250000 #default = 1000000
     learning_starts = 25000 #default = 25e3
-    episode_length = 120
+    episode_length = 50
     exploration_noise = 0.001
     policy_frequency = 2
     tau = 0.005 # weight to update the target network
-    gamma = 0.99 #discount factor
-    learning_rate = 3e-5
+    gamma = 0.9 #0.99 #discount factor
+    learning_rate = 3e-4
     alpha = 0.2 #Entropy regularization coefficient
     target_network_frequency = 1
+    MAX_OPEN_LOOP_CONTROL = 2.5
+    epsilon = 0.0
+
 
     random.seed(given_seed)
     np.random.seed(given_seed)
@@ -156,10 +161,10 @@ if __name__ == "__main__":
     qf2 = SoftQNetwork(env).to(device)
 
     # load pretrained model.
-    #checkpoint = torch.load(f"../runs/{run_name}/{exp_name}.pth")
-    # actor.load_state_dict(checkpoint[0])
-    # qf1.load_state_dict(checkpoint[1])
-    # qf2.load_state_dict(checkpoint[2])
+    checkpoint = torch.load(f"../runs/{run_name}/{exp_name}.pth")
+    actor.load_state_dict(checkpoint[0])
+    qf1.load_state_dict(checkpoint[1])
+    qf2.load_state_dict(checkpoint[2])
 
     #target network 
     qf1_target = SoftQNetwork(env).to(device)
@@ -183,22 +188,45 @@ if __name__ == "__main__":
         handle_timeout_termination=False,
     )
 
+    filename = '../data/sac_cartpole/' + 'init_traj_sac.csv'
+			
+    u_guess = np.zeros(30, dtype = np.float32)
+    
+    with open(filename, mode='r') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header
+        for t, row in enumerate(reader):
+            u_guess[t] = float(row[0])
+
     start_time = time.time()
 
     episode_t = 0 
+    episode_count = 0
     cost = 0
     obs, _ = env.reset()
-
+    print(f'initial state = {obs}')
+    
     for global_step in range(total_timesteps):
         
         if global_step < learning_starts:
-            actions = np.array(env.action_space.sample())
+
+            if episode_count < 0:
+                #use optimal traj guess from ILQR
+                actions = u_guess[episode_t] + np.random.normal(0.0,0.01)
+                actions = actions.clip(env.action_space.low, env.action_space.high)
+            else:
+                actions = np.array(env.action_space.sample())
             
         else:
             with torch.no_grad():
                 #print(f"observation = {obs}")
                 actions, _, _ = actor.get_action(torch.Tensor(obs).to(device))
                 actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
+                
+                #adding control noise
+                w = epsilon*np.random.normal(0.0,1.0)*MAX_OPEN_LOOP_CONTROL
+                actions = actions + w
+                actions = actions.clip(env.action_space.low, env.action_space.high)
 
         
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
@@ -257,8 +285,11 @@ if __name__ == "__main__":
                     actor_loss.backward()
                     actor_optimizer.step()
 
+                    
+            if episode_count % 100 == 0:
                 print(f'step= {global_step} rewards= {rewards} qf_loss = {qf_loss.item()} '
-                        f'actor_loss = {actor_loss.item()} observations= {obs} action= {actions}')
+                    f' observations= {obs} action= {actions}')
+                #print(f"next_q_value = {next_q_value[0:10]}, qf1_a_values = {qf1_a_values[0:10]}")
 
             # update the target networks
             if global_step % target_network_frequency == 0:
@@ -267,20 +298,25 @@ if __name__ == "__main__":
                 for param, target_param in zip(qf2.parameters(), qf2_target.parameters()):
                     target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
-            if global_step % 100 == 0:
+            # if global_step % 100 == 0:
                 
-                print("SPS:", int(global_step / (time.time() - start_time)))
-                # Data to write
-                write_data = [global_step, rewards, qf1_loss.item(), actor_loss.item(), obs, actions]
-                write_data_csv(write_data)
+            #     print("SPS:", int(global_step / (time.time() - start_time)))
+            #     # Data to write
+                
 
-        episode_t = episode_t + 1
-        if abs(next_obs[0])>= 10 or episode_t == episode_length:
-            print('resetting')
+        episode_t += 1
+        
+        if abs(next_obs[0])>= 5 or episode_t == episode_length:
+            #print('resetting')
             obs, _ = env.reset()
             episode_t = 0
+            #if episode_count % 100 == 0:
             print(f'Cost = {cost}')
             cost = 0
+            episode_count += 1
+            if episode_count % 100 == 0 and global_step > learning_starts:
+                write_data = [global_step, rewards, qf_loss.item(), actor_loss.item(), obs, actions]
+                write_data_csv(write_data)
 
 
     save_model = True

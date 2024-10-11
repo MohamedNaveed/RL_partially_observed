@@ -11,8 +11,8 @@ import pandas as pd
 
 ENV_NAME = 'InvertedPendulum-v4'
 
-csv_file = '/home/naveed/Documents/RL/naveed_codes/data/sac_cartpole/test.csv'
-exp_name = 'sac_cartpole_ep_30_epsi20'
+csv_file = '../data/sac_cartpole/sac_cartpole_monte_carlo_epsi50_v1.csv'
+exp_name = 'sac_cartpole_ep_30_v1_epsi50'
 run_name = 'sac'
 
 class SoftQNetwork(nn.Module):
@@ -89,8 +89,8 @@ def make_env(env_id, render_bool, record_video=False):
     else:
         env = gym.make('InvertedPendulum-v4')
 
-    min_action = -20
-    max_action = 20
+    min_action = -30
+    max_action = 30
     env = RescaleAction(env, min_action=min_action, max_action=max_action)
     env.reset()
 
@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
     print(f"Using {device}");
 
-    env = make_env(ENV_NAME, render_bool = True, record_video=False)
+    env = make_env(ENV_NAME, render_bool = False, record_video=False)
     assert isinstance(env.action_space, gym.spaces.Box), "only continuous action space is supported"
 
     actor = Actor(env).to(device)
@@ -192,10 +192,10 @@ if __name__ == "__main__":
     actor.eval()
     qf1.eval() 
 
-    epsi_range = np.linspace(0.0,0.1,11)
-    epsi_range = np.append(epsi_range, np.linspace(.2,0.5,4), axis=0)
+    epsi_range = np.linspace(0.0,1,11)
+    epsi_range = np.append(epsi_range, np.linspace(2,5,4), axis=0)
     #epsi_range = np.linspace(0,0,1)
-    mc_runs = 500
+    mc_runs = 100
     
 
     print("Epsilon range:", epsi_range)

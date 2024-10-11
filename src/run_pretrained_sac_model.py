@@ -7,11 +7,12 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import csv
+import time
 
 ENV_NAME = 'InvertedPendulum-v4'
 csv_file = 'sac_cartpole_output.csv' #csv file to store training progress
-exp_name = 'sac_cartpole_ep_30'
+exp_name = 'sac_cartpole_ep_30_v1_epsi0'
 run_name = 'sac'
 
 class SoftQNetwork(nn.Module):
@@ -32,7 +33,7 @@ class SoftQNetwork(nn.Module):
 LOG_STD_MAX = 2
 LOG_STD_MIN = -5
 MAX_OPEN_LOOP_CONTROL = 2.5
-epsilon = 0
+epsilon = 0.0
 
 class Actor(nn.Module):
     def __init__(self, env):
@@ -68,6 +69,9 @@ class Actor(nn.Module):
         #x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
         x_t = mean #makeing the action deterministic
         y_t = torch.tanh(x_t)
+        #device = "cuda"
+        #self.action_scale = torch.Tensor(np.array([100.0])).to(device)
+        print(f"action_scale = {self.action_scale}, action bias = {self.action_bias}")
         action = y_t * self.action_scale + self.action_bias
         log_prob = normal.log_prob(x_t)
         # Enforcing Action Bound
@@ -89,18 +93,32 @@ def make_env(env_id, render_bool, record_video=False):
     else:
         env = gym.make('InvertedPendulum-v4')
 
-    min_action = -20
-    max_action = 20
+    min_action = -30
+    max_action = 30
     env = RescaleAction(env, min_action=min_action, max_action=max_action)
     env.reset()
 
     return env
 
 
+
+
+# Saving the actions to a CSV file
+def save_actions_to_csv(action_vec, filename="actions.csv"):
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Action"])  # Write header
+        for action in action_vec:
+            writer.writerow([action])
+
+
+
+
+
 if __name__ == "__main__":
 
     given_seed = 1
-    total_timesteps = 30
+    total_timesteps = 200
     gamma = 0.99
 
     random.seed(given_seed)
@@ -153,8 +171,8 @@ if __name__ == "__main__":
             # env.set_state(q_pos, q_vel)
             # obs, rewards, terminations, truncations, infos = env.step(0.0)
             
-        #env.render()
-        
+        env.render()
+        time.sleep(0.2)
         print("observation:", obs, " action:", actions, ' CTG=', cost_to_go, ' w = ', w)
         
         obs = next_obs
@@ -165,5 +183,6 @@ if __name__ == "__main__":
         actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
     print("observation:", obs, " action:", actions, ' CTG=', cost_to_go)
     print("actions vec =", action_vec)
+    #save_actions_to_csv(action_vec, filename="actions_sac_horizon_30.csv")
     env.close()
     
