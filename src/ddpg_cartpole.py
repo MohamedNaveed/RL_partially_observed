@@ -1,9 +1,15 @@
 import gymnasium as gym
 from gymnasium.wrappers import RescaleAction
 import numpy as np
+import math
 import random
+import matplotlib
+import matplotlib.pyplot as plt
+from collections import namedtuple, deque
+from itertools import count
 import time
 from distutils.util import strtobool
+import os
 
 import torch
 import torch.nn as nn
@@ -16,9 +22,9 @@ import csv
 from noise_injector import OrnsteinUhlenbeckActionNoise
 
 ENV_NAME = 'InvertedPendulum-v4'
-csv_file = 'cartpole_output.csv' #csv file to store training progress
-exp_name = 'cartpole_ep_30'
-run_name = 'test'
+csv_file = 'cartpole_buffer10_3_1M.csv' #csv file to store training progress
+exp_name = 'cartpole_buffer10_3_1M'
+run_name = 'ddpg'
 
 class QNetwork(nn.Module):
     def __init__(self, env):
@@ -75,8 +81,8 @@ def make_env(env_id, render_bool):
     else:
         env = gym.make('InvertedPendulum-v4')
 
-    min_action = -20
-    max_action = 20
+    min_action = -30
+    max_action = 30
     env = RescaleAction(env, min_action=min_action, max_action=max_action)
     env.reset()
 
@@ -99,17 +105,18 @@ def write_data_csv(data):
 if __name__ == "__main__":
 
     given_seed = 1
-    buffer_size = int(1e6)
+    buffer_size = int(1e3)
     batch_size = 256
-    total_timesteps = 100000 #default = 1000000
+    total_timesteps = 1000000 #default = 1000000
     learning_starts = 25000 #default = 25e3
-    episode_length = 120
-    exploration_noise = 0.001
+    episode_length = 100
+    exploration_noise = 0.01
     policy_frequency = 2
     tau = 0.005 # weight to update the target network
     gamma = 0.99 #discount factor
     learning_rate = 3e-5
     
+
     random.seed(given_seed)
     np.random.seed(given_seed)
     torch.manual_seed(given_seed)
@@ -131,9 +138,9 @@ if __name__ == "__main__":
     qf1 = QNetwork(env).to(device)
 
     # load pretrained model.
-    checkpoint = torch.load(f"../runs/{run_name}/{exp_name}.pth")
-    actor.load_state_dict(checkpoint[0])
-    qf1.load_state_dict(checkpoint[1])
+    # checkpoint = torch.load(f"runs/{run_name}/{exp_name}.pth")
+    # actor.load_state_dict(checkpoint[0])
+    # qf1.load_state_dict(checkpoint[1])
 
     #target network 
     qf1_target = QNetwork(env).to(device)
@@ -160,6 +167,7 @@ if __name__ == "__main__":
     start_time = time.time()
 
     episode_t = 0 
+    episode_count = 0
     cost = 0
     obs, _ = env.reset()
     noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(np.prod(env.action_space.shape)))
@@ -183,7 +191,7 @@ if __name__ == "__main__":
         #print('step=', global_step, ' actions=', actions, ' rewards=', rewards,\
         #      ' obs=', next_obs, ' termination=', terminations, ' trunctions=', truncations)
 
-    
+
         # save data to replay buffer; handle `final_observation`
         real_next_obs = next_obs.copy()
 
@@ -215,10 +223,8 @@ if __name__ == "__main__":
 
             if global_step % policy_frequency == 0:
                 actor_loss = -qf1(data.observations, actor(data.observations)).mean()
-
-                print(f'step= {global_step} rewards= {rewards} qf1_loss = {qf1_loss.item()} '
-                        f'actor_loss = {actor_loss.item()} observations= {obs} action= {actions}')
-
+                # print('step=', global_step, ' rewards=', rewards, ' qf1_loss = ', qf1_loss.item(), \
+                #      ' actor_loss = ', actor_loss.item(), ' observations=', obs, ' action=', actions)
                 actor_optimizer.zero_grad()
                 actor_loss.backward()
                 actor_optimizer.step()
@@ -229,16 +235,20 @@ if __name__ == "__main__":
                 for param, target_param in zip(qf1.parameters(), qf1_target.parameters()):
                     target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
-            if global_step % 100 == 0:
+            if global_step % 1000 == 0:
                 
                 print("SPS:", int(global_step / (time.time() - start_time)))
                 # Data to write
-                write_data = [global_step, rewards, qf1_loss.item(), actor_loss.item(), obs, actions]
-                write_data_csv(write_data)
+                # write_data = [global_step, rewards, qf1_loss.item(), actor_loss.item(), obs, actions]
+                # write_data_csv(write_data)
 
         episode_t = episode_t + 1
         if abs(next_obs[0])>= 10 or episode_t == episode_length:
-            print('resetting')
+            #print('resetting')
+            episode_count += 1
+            if episode_count % 100 == 0 and global_step > learning_starts:
+                write_data = [global_step, cost, qf1_loss.item(), actor_loss.item(), obs, actions]
+                write_data_csv(write_data)
             obs, _ = env.reset()
             episode_t = 0
             print(f'Cost = {cost}')
@@ -247,7 +257,7 @@ if __name__ == "__main__":
 
     save_model = True
     if save_model:
-        model_path = f"../runs/{run_name}/{exp_name}.pth"
+        model_path = f"runs/{run_name}/{exp_name}.pth"
         torch.save((actor.state_dict(), qf1.state_dict()), model_path)
         print(f"model saved to {model_path}")
 

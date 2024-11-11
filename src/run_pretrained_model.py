@@ -7,11 +7,11 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import time
 
 ENV_NAME = 'InvertedPendulum-v4'
-exp_name = 'cartpole_ep_200'
-run_name = 'test'
+exp_name = 'cartpole_buffer10_6'
+run_name = 'ddpg'
 
 def make_env(env_id, render_bool, record_video=False):
 
@@ -25,8 +25,8 @@ def make_env(env_id, render_bool, record_video=False):
     else:
         env = gym.make('InvertedPendulum-v4')
 
-    min_action = -20
-    max_action = 20
+    min_action = -30
+    max_action = 30
     env = RescaleAction(env, min_action=min_action, max_action=max_action)
     env.reset()
 
@@ -72,7 +72,7 @@ class Actor(nn.Module):
 if __name__ == "__main__":
 
     given_seed = 1
-    total_timesteps = 1000
+    total_timesteps = 100
     gamma = 0.99
 
     random.seed(given_seed)
@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
     print(f"Using {device}");
 
-    env = make_env(ENV_NAME, render_bool = True, record_video=True)
+    env = make_env(ENV_NAME, render_bool = True, record_video=False)
     assert isinstance(env.action_space, gym.spaces.Box), "only continuous action space is supported"
 
     actor = Actor(env).to(device)
@@ -122,6 +122,7 @@ if __name__ == "__main__":
         print("observation:", next_obs, " action:", actions, ' CTG=', cost_to_go)
         
         obs = next_obs
+        time.sleep(0.1)
 
     env.close()
     

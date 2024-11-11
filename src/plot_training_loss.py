@@ -1,39 +1,67 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 import numpy as np
-# Read the CSV file
-csv_file = '../data/cartpole_po_nz_2_q_2.csv'  # Replace with your CSV file path
-data = pd.read_csv(csv_file)
 
-# Display the first few rows of the dataframe to verify
-print(data.head())
-idx = [0,data['qf1_loss'].size]
-steps = np.arange(data['qf1_loss'].size) * (data['step'][1] - data['step'][0])
-# Ensure 'global_step' and 'training_loss' (or equivalent) columns exist
-if 'step' in data.columns and 'qf1_loss' in data.columns:
-    # Plot the training loss
-    plt.figure(figsize=(10, 5))
-    plt.plot(steps, data['qf1_loss'][idx[0]:idx[1]], label='Training Loss')
-    plt.yscale('log')  # Set y-axis scale to logarithmic
-    plt.xlabel('Global Steps')
-    plt.ylabel('Training Loss')
-    plt.title('Training Loss Over Time')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-else:
-    print("Required columns ('step' and 'qf1_loss') not found in the CSV file.")
+params = {'axes.labelsize':14,
+            'font.size':14,
+            'legend.fontsize':14,
+            'xtick.labelsize':12,
+            'ytick.labelsize':12,
+            'text.usetex':True,
+            'figure.figsize':[12,8]}
+plt.rcParams.update(params)
+# Set font type to Type 42 (TrueType) for embedding in PDF
+rcParams['pdf.fonttype'] = 42
+rcParams['ps.fonttype'] = 42
 
+# Load the data from the CSV file
+path = '../data/ddpg_cartpole/'
+file_name = 'cartpole_buffer10_3_1M'
+file_path = f"{path}/{file_name}.csv"  # Replace with your actual file path
+data = pd.read_csv(file_path)
 
-if 'step' in data.columns and 'actor_loss' in data.columns:
-    # Plot the training loss
-    plt.figure(figsize=(10, 5))
-    plt.plot(steps, data['actor_loss'][idx[0]:idx[1]], label='Q value')
-    plt.xlabel('Global Steps')
-    plt.ylabel('Actor Loss')
-    plt.title('Actor Loss Over Time')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-else:
-    print("Required columns ('step' and 'actor_loss') not found in the CSV file.")
+# Plotting
+plt.figure()
+
+cost_vec = []
+
+for cost in data['rewards']:
+    cost_vec.append(float(cost.strip('[]')))
+
+len_episodes = np.arange(1,len(data['step'])*100,100)
+
+# Plot episode cost
+plt.subplot(3, 1, 1)
+plt.plot(len_episodes, cost_vec, color='blue', linewidth = 3, label='Episode Cost')
+plt.xlabel('Episode')
+plt.ylabel('Episode Cost')
+plt.title('DDPG Training Metrics Buffer size = 1e3')
+plt.grid()
+plt.legend()
+
+# Plot Q-function loss (qf1_loss)
+plt.subplot(3, 1, 2)
+plt.plot(len_episodes, data['qf1_loss'], color='red',linewidth = 3, label='Critic Loss')
+#plt.yscale('log')
+plt.xlabel('Episode')
+plt.ylabel('QF Loss')
+plt.grid()
+plt.legend()
+
+# Plot actor loss
+plt.subplot(3, 1, 3)
+plt.plot(len_episodes, data['actor_loss'], color='green',linewidth = 3, label='Actor Loss')
+plt.xlabel('Episode')
+plt.ylabel('Actor Loss')
+plt.grid()
+plt.legend()
+
+# Adjust layout
+plt.tight_layout()
+
+# Save the plot as a PDF with embedded fonts
+plt.savefig(f"../plots/DDPG_training_metrics_{file_name}.pdf", format='pdf', bbox_inches='tight')
+
+# Display the plot (optional)
+#plt.show()

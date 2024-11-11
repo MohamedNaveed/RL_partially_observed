@@ -15,7 +15,7 @@ params = {'axes.labelsize':12,
             'xtick.labelsize':12,
             'ytick.labelsize':12,
             'text.usetex':True,
-            'figure.figsize':[4.5,3]}
+            'figure.figsize':[4.5,3.5]}
 pylab.rcParams.update(params)
 
 
@@ -27,7 +27,7 @@ PLOT_D2C_REPLAN = True
 
 Noise_level = [0,100] #file index 1.6 - 64 1.0 - 54 .4-42
 
-epsilonList = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5]
+epsilonList = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.2,1.4,1.6,1.8, 2]
 
 if __name__=='__main__':
 
@@ -199,18 +199,42 @@ if __name__=='__main__':
     #     Min_cost = cost_blue[0]
 
     Min_cost = 1 #normalization
-    epsilon_scale_factor = 20
+    epsilon_scale_factor = 50
 
+    
+    #Orange = #ff7f0e
+    if PLOT_D2C_REPLAN:
+        pylab.fill_between(epsilon_scale_factor*epsilon_d2c_replan[Noise_level[0]:Noise_level[1]+1],
+                        (cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]-cost_std_d2c_replan[Noise_level[0]:Noise_level[1]+1])/Min_cost,
+                        (cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]+cost_std_d2c_replan[Noise_level[0]:Noise_level[1]+1])/Min_cost,
+                        alpha=0.25,linewidth=0,color='#7E1E9C')
+
+        pylab.plot(epsilon_scale_factor*epsilon_d2c_replan[Noise_level[0]:Noise_level[1]+1],
+                    cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]/Min_cost,
+                    linewidth=3,marker='.',markersize=10,color='#7E1E9C', label="D2C Replan")
+        
+    if PLOT_D2C:
+        pylab.fill_between(epsilon_scale_factor*epsilon_d2c[Noise_level[0]:Noise_level[1]+1],
+                        (cost_d2c[Noise_level[0]:Noise_level[1]+1]-cost_std_d2c[Noise_level[0]:Noise_level[1]+1])/Min_cost,
+                        (cost_d2c[Noise_level[0]:Noise_level[1]+1]+cost_std_d2c[Noise_level[0]:Noise_level[1]+1])/Min_cost,
+                        alpha=0.25,linewidth=0,color='#BBF90F')
+
+        pylab.plot(epsilon_scale_factor*epsilon_d2c[Noise_level[0]:Noise_level[1]+1],
+                    cost_d2c[Noise_level[0]:Noise_level[1]+1]/Min_cost,
+                    linewidth=2,marker='.',markersize=10,color='#BBF90F', label=r"D2C")
+        
+    
+        
     #plotting
     if PLOT_RED:
         pylab.fill_between(epsilon_scale_factor*epsilon_red[Noise_level[0]:Noise_level[1]+1],
                         (cost_red[Noise_level[0]:Noise_level[1]+1]-cost_std_red[Noise_level[0]:Noise_level[1]+1])/Min_cost,
                         (cost_red[Noise_level[0]:Noise_level[1]+1]+cost_std_red[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        alpha=0.35,linewidth=0,color='#ff7f0e')
+                        alpha=0.35,linewidth=0,color='tab:cyan')
 
         pylab.plot(epsilon_scale_factor*epsilon_red[Noise_level[0]:Noise_level[1]+1],
                     cost_red[Noise_level[0]:Noise_level[1]+1]/Min_cost,
-                    linewidth=3,marker='.',markersize=10,color='#ff7f0e',label=r"SAC $\epsilon = 0\%$")
+                    linewidth=3,marker='.',markersize=10,color='tab:cyan',label=r"SAC $\epsilon = 0\%$")
     
 
 
@@ -218,10 +242,10 @@ if __name__=='__main__':
         pylab.fill_between(epsilon_scale_factor*epsilon_green[Noise_level[0]:Noise_level[1]+1],
                         (cost_green[Noise_level[0]:Noise_level[1]+1] - cost_std_green[Noise_level[0]:Noise_level[1]+1])/Min_cost,
                         (cost_green[Noise_level[0]:Noise_level[1]+1] + cost_std_green[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        alpha=0.25,linewidth=0,color='#2ca02c')
+                        alpha=0.25,linewidth=0,color='#ff7f0e')
 
         pylab.plot(epsilon_scale_factor*epsilon_green[Noise_level[0]:Noise_level[1]+1],cost_green[Noise_level[0]:Noise_level[1]+1]/Min_cost,
-                   linewidth=3,linestyle='--',marker='',markersize=10,color='#2ca02c',label=r"SAC $\epsilon = 10\%$")
+                   linewidth=3,linestyle='--',marker='.',markersize=10,color='#ff7f0e',label=r"SAC $\epsilon = 25\%$")
         
     if PLOT_BLUE:
         pylab.fill_between(epsilon_scale_factor*epsilon_blue[Noise_level[0]:Noise_level[1]+1],
@@ -231,32 +255,16 @@ if __name__=='__main__':
 
         pylab.plot(epsilon_scale_factor*epsilon_blue[Noise_level[0]:Noise_level[1]+1],
                     cost_blue[Noise_level[0]:Noise_level[1]+1]/Min_cost,
-                    linewidth=3,linestyle=':',marker='',markersize=10,color='#1f77b4', label=r"SAC $\epsilon = 20\%$")
+                    linewidth=3,linestyle=':',marker='.',markersize=10,color='#1f77b4', label=r"SAC $\epsilon = 50\%$")
 
-    if PLOT_D2C:
-        pylab.fill_between(epsilon_scale_factor*epsilon_d2c[Noise_level[0]:Noise_level[1]+1],
-                        (cost_d2c[Noise_level[0]:Noise_level[1]+1]-cost_std_d2c[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        (cost_d2c[Noise_level[0]:Noise_level[1]+1]+cost_std_d2c[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        alpha=0.25,linewidth=0,color='#9467bd')
-
-        pylab.plot(epsilon_scale_factor*epsilon_d2c[Noise_level[0]:Noise_level[1]+1],
-                    cost_d2c[Noise_level[0]:Noise_level[1]+1]/Min_cost,
-                    linewidth=3,linestyle=':',marker='.',markersize=10,color='#9467bd', label=r"D2C")
     
-    if PLOT_D2C_REPLAN:
-        pylab.fill_between(epsilon_scale_factor*epsilon_d2c_replan[Noise_level[0]:Noise_level[1]+1],
-                        (cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]-cost_std_d2c_replan[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        (cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]+cost_std_d2c_replan[Noise_level[0]:Noise_level[1]+1])/Min_cost,
-                        alpha=0.25,linewidth=0,color='#d62728')
-
-        pylab.plot(epsilon_scale_factor*epsilon_d2c_replan[Noise_level[0]:Noise_level[1]+1],
-                    cost_d2c_replan[Noise_level[0]:Noise_level[1]+1]/Min_cost,
-                    linewidth=3,marker='',markersize=10,color='#d62728', label="MPC \n (D2C Replan)")
+    
+    
     ##legends
     #if PLOT_BLUE and PLOT_RED and PLOT_GREEN:
-    legend = pylab.legend(loc= 'upper center')
+    legend = pylab.legend(loc= 'upper left')
     
-    pylab.ylim(-0.2,15)
+    pylab.ylim(-0.05,5.5)
     #pylab.ylim(600,1150)
     #pylab.ylim(1500,4000)
     #pylab.xlim(-0.01,1.0)
@@ -276,7 +284,7 @@ if __name__=='__main__':
     #frame.set_facecolor('0.9')
     #frame.set_edgecolor('0.9')
 
-    pylab.xlabel(r'Std dev of process noise (\% of max. control)')
+    pylab.xlabel(r'Std dev of process noise (scaled w.r.t control $\bar{u} = 5.0$)')
     #pylab.ylabel(r'$J/\bar{J}$')
     pylab.ylabel(r'L2-norm of terminal state error')
     #pylab.title('Cost vs error percentage for 3 agent(s) ')

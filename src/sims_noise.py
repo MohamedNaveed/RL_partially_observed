@@ -11,8 +11,8 @@ import pandas as pd
 
 ENV_NAME = 'InvertedPendulum-v4'
 
-csv_file = '../data/sac_cartpole/sac_cartpole_monte_carlo_epsi50_v1.csv'
-exp_name = 'sac_cartpole_ep_30_v1_epsi50'
+csv_file = '../data/sac_cartpole/sac_cartpole_monte_carlo_epsi100_v1.csv'
+exp_name = 'sac_cartpole_ep_30_v1_epsi100'
 run_name = 'sac'
 
 class SoftQNetwork(nn.Module):
@@ -130,6 +130,10 @@ def save_to_csv(epsilon, cost_mean, cost_var, error_mean, error_var, csv_file):
     # Append the data to the CSV file
     df.to_csv(csv_file, mode='a', index=False, header=not pd.io.common.file_exists(csv_file))
 
+def remove_upper_percentile_outliers(data, upper_percentile=95):
+    upper_bound = np.percentile(data, upper_percentile)
+    return data[data <= upper_bound]
+
 def run_sample(epsilon, iter, actor, qf1):
 
     given_seed = iter
@@ -169,9 +173,17 @@ def run_sample(epsilon, iter, actor, qf1):
         obs = next_obs
     
     cost -= terminal_cost(obs)
+    obs[1] = angle_normalize(obs[1]) #normalize theta between -pi to pi
     error = np.linalg.norm(obs)
     #print(f"cost = {cost} error = {error}")
     return cost[0], error
+
+def angle_normalize(x):
+    '''
+    Function to normalize the pendulum's angle from [0, Inf] to [-np.pi, np.pi]
+    '''
+    
+    return -((-x+np.pi) % (2*np.pi)) + np.pi
 
 if __name__ == "__main__":
     
@@ -185,6 +197,7 @@ if __name__ == "__main__":
 
     actor = Actor(env).to(device)
     qf1 = SoftQNetwork(env).to(device)
+    print(f"loading ../runs/{run_name}/{exp_name}.pth")
     checkpoint = torch.load(f"../runs/{run_name}/{exp_name}.pth")
     actor.load_state_dict(checkpoint[0])
     qf1.load_state_dict(checkpoint[1])
@@ -192,8 +205,8 @@ if __name__ == "__main__":
     actor.eval()
     qf1.eval() 
 
-    epsi_range = np.linspace(0.0,1,11)
-    epsi_range = np.append(epsi_range, np.linspace(2,5,4), axis=0)
+    epsi_range = np.linspace(1.2,1.8,4)
+    #epsi_range = np.append(epsi_range, np.linspace(2,5,4), axis=0)
     #epsi_range = np.linspace(0,0,1)
     mc_runs = 100
     
@@ -217,17 +230,19 @@ if __name__ == "__main__":
             error[iter] = error_iter
 
         # Calculate the mean and variance of cost and error
-        cost_mean = np.mean(cost)
-        cost_var = np.var(cost)
-        error_mean = np.mean(error)
-        error_var = np.var(error)
+        cost_filtered = remove_upper_percentile_outliers(cost, upper_percentile=95)
+        cost_mean = np.mean(cost_filtered)
+        cost_var = np.var(cost_filtered)
+
+        error_filtered = remove_upper_percentile_outliers(error, upper_percentile=95)
+        error_mean = np.mean(error_filtered)
+        error_var = np.var(error_filtered)
 
         print(f"epsilon = {epsilon}, cost_mean = {cost_mean}, cost_var = {cost_var}, \
               error_mean = {error_mean}, error_var = {error_var}")
         # Save the results to a CSV file
         save_to_csv(epsilon, cost_mean, cost_var, error_mean, error_var, csv_file)
 
-                
         
 
     env.close()

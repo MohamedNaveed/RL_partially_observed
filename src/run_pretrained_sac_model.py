@@ -12,7 +12,7 @@ import time
 
 ENV_NAME = 'InvertedPendulum-v4'
 csv_file = 'sac_cartpole_output.csv' #csv file to store training progress
-exp_name = 'sac_cartpole_ep_30_v1_epsi0'
+exp_name = 'sac_cartpole_v4_buffer10_4_2M'
 run_name = 'sac'
 
 class SoftQNetwork(nn.Module):
@@ -118,7 +118,7 @@ def save_actions_to_csv(action_vec, filename="actions.csv"):
 if __name__ == "__main__":
 
     given_seed = 1
-    total_timesteps = 200
+    total_timesteps = 100
     gamma = 0.99
 
     random.seed(given_seed)
@@ -172,7 +172,7 @@ if __name__ == "__main__":
             # obs, rewards, terminations, truncations, infos = env.step(0.0)
             
         env.render()
-        time.sleep(0.2)
+        time.sleep(0.1)
         print("observation:", obs, " action:", actions, ' CTG=', cost_to_go, ' w = ', w)
         
         obs = next_obs
