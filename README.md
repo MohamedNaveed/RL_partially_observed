@@ -22,3 +22,6 @@ For more information about information-state check out my work here: https://arx
 
 ## SAC Learned policy on full state (stochastic) 
 ![Demo](videos/sac/stochastic_policy.gif)
+
+## SAC performance under noise. 
+![See plot](plots/cartpole_sac.pdf)
