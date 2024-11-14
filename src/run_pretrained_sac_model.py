@@ -12,15 +12,15 @@ import time
 
 ENV_NAME = 'InvertedPendulum-v4'
 csv_file = 'sac_cartpole_output.csv' #csv file to store training progress
-exp_name = 'sac_cartpole_v4_buffer10_4_2M'
+exp_name = 'sac_cartpole_v4_buffer10_6_1M'
 run_name = 'sac'
 
 class SoftQNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() + np.prod(env.action_space.shape), 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, 1)
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod() + np.prod(env.action_space.shape), 400)
+        self.fc2 = nn.Linear(400, 300)
+        self.fc3 = nn.Linear(300, 1)
 
     def forward(self, x, a):
         x = torch.cat([x, a], 0)
@@ -38,10 +38,10 @@ epsilon = 0.0
 class Actor(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc_mean = nn.Linear(512, np.prod(env.action_space.shape))
-        self.fc_logstd = nn.Linear(512, np.prod(env.action_space.shape))
+        self.fc1 = nn.Linear(np.array(env.observation_space.shape).prod(), 400)
+        self.fc2 = nn.Linear(400, 300)
+        self.fc_mean = nn.Linear(300, np.prod(env.action_space.shape))
+        self.fc_logstd = nn.Linear(300, np.prod(env.action_space.shape))
         # action rescaling
         self.register_buffer(
             "action_scale", torch.tensor((env.action_space.high - env.action_space.low) / 2.0, dtype=torch.float32)
@@ -111,7 +111,16 @@ def save_actions_to_csv(action_vec, filename="actions.csv"):
         for action in action_vec:
             writer.writerow([action])
 
+def reward_function(observation, action):
+    diag_q = [1,10,1,1]; 
+    r = 1;
+    #print("observation:", observation)
+    #print("observation:", observation[0,1])
+    cost = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
+                diag_q[2]*(observation[2]**2) + diag_q[3]*(observation[3]**2) +\
+                r*(action**2)
 
+    return -cost
 
 
 
@@ -145,6 +154,13 @@ if __name__ == "__main__":
     qf1.eval() 
 
     obs, _ = env.reset(seed=10)
+    q_pos = np.array([0,np.pi])
+    q_vel = np.array([0,0])
+    env.unwrapped.set_state(q_pos, q_vel)
+    obs[0:2] = q_pos
+    obs[2:] = q_vel
+    #print(obs) 
+    cost = 0
     # print(f'obs={obs}')
     # q_pos = np.array([-0.1,0.0])
     # q_vel = np.array([0,0])
@@ -164,6 +180,8 @@ if __name__ == "__main__":
             actions = actions + w
             actions = actions.clip(env.action_space.low, env.action_space.high)
 
+        rewards = reward_function(obs, actions)
+        cost -=rewards
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
         
         if terminations:
@@ -184,5 +202,7 @@ if __name__ == "__main__":
     print("observation:", obs, " action:", actions, ' CTG=', cost_to_go)
     print("actions vec =", action_vec)
     #save_actions_to_csv(action_vec, filename="actions_sac_horizon_30.csv")
+
+    print(f"Final cost = {cost}")
     env.close()
     

@@ -10,7 +10,7 @@ import torch.nn.functional as F
 import time
 
 ENV_NAME = 'InvertedPendulum-v4'
-exp_name = 'cartpole_buffer10_6'
+exp_name = 'cartpole_buffer10_3_1M'
 run_name = 'ddpg'
 
 def make_env(env_id, render_bool, record_video=False):
@@ -69,6 +69,16 @@ class Actor(nn.Module):
         x = torch.tanh(self.fc_mu(x))
         return x * self.action_scale + self.action_bias
 
+def reward_function(observation, action):
+    diag_q = [1,10,1,1]; 
+    r = 1;
+    #print("observation:", observation)
+    #print("observation:", observation[0,1])
+    cost = diag_q[0]*(observation[0]**2) + diag_q[1]*(observation[1]**2) +\
+                diag_q[2]*(observation[2]**2) + diag_q[3]*(observation[3]**2) +\
+                r*(action**2)
+
+    return -cost
 if __name__ == "__main__":
 
     given_seed = 1
@@ -105,11 +115,15 @@ if __name__ == "__main__":
     # env.set_state(q_pos, q_vel)
     # obs, rewards, terminations, truncations, infos = env.step(0.0)
     # print(f'obs={obs}')
+    cost = 0
     for global_step in range(total_timesteps):
         with torch.no_grad():
             actions = actor(torch.Tensor(obs).to(device))
             cost_to_go = -qf1(torch.Tensor(obs).to(device), actions).item()
             actions = actions.cpu().numpy().clip(env.action_space.low, env.action_space.high)
+
+        rewards = reward_function(obs, actions)
+        cost -=rewards 
         next_obs, rewards, terminations, truncations, infos = env.step(actions)
         
         if terminations:
@@ -124,5 +138,6 @@ if __name__ == "__main__":
         obs = next_obs
         time.sleep(0.1)
 
+    print(f"final cost = {cost}")
     env.close()
     
