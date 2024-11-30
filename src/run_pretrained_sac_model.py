@@ -12,7 +12,7 @@ import time
 
 ENV_NAME = 'InvertedPendulum-v4'
 csv_file = 'sac_cartpole_output.csv' #csv file to store training progress
-exp_name = 'sac_cartpole_v4_buffer10_6_1M'
+exp_name = 'sac_cartpole_v4_buffer10_3_1M'
 run_name = 'sac'
 
 class SoftQNetwork(nn.Module):
@@ -85,7 +85,7 @@ def make_env(env_id, render_bool, record_video=False):
 
     if record_video:
         env = gym.make('InvertedPendulum-v4',render_mode = "rgb_array")
-        env = gym.wrappers.RecordVideo(env, f"../videos/{run_name}")
+        env = gym.wrappers.RecordVideo(env, f"../videos/sac_new")
 
     elif render_bool: 
         env = gym.make('InvertedPendulum-v4',render_mode = "human")
@@ -141,7 +141,7 @@ if __name__ == "__main__":
 
     print(f"Using {device}");
 
-    env = make_env(ENV_NAME, render_bool = True, record_video=False)
+    env = make_env(ENV_NAME, render_bool = True, record_video=True)
     assert isinstance(env.action_space, gym.spaces.Box), "only continuous action space is supported"
 
     actor = Actor(env).to(device)
