@@ -11,8 +11,8 @@ import csv
 
 ENV_NAME = 'InvertedPendulum-v4'
 save_model = True
-csv_file = 'ppo_cartpole_output_v4_1M.csv' #csv file to store training progress
-exp_name = 'ppo_cartpole_1M'
+csv_file = 'ppo_cartpole_output_v4_4M.csv' #csv file to store training progress
+exp_name = 'ppo_cartpole_4M'
 run_name = 'ppo'
 
 def make_env(env_id, render_bool):
@@ -55,7 +55,7 @@ def write_data_csv(data):
         
         # Write the header only if the file is empty
         if file.tell() == 0:
-            writer.writerow(['step', 'cost', 'loss', 'observations', 'action'])
+            writer.writerow(['step', 'cost', 'loss'])
         
         # Write the data
         writer.writerow(data)
@@ -64,18 +64,18 @@ class Agent(nn.Module):
     def __init__(self, env):
         super().__init__()
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 64)),
+            layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 256)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
+            layer_init(nn.Linear(256, 256)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=1.0),
+            layer_init(nn.Linear(256, 1), std=1.0),
         )
         self.actor_mean = nn.Sequential(
-            layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 64)),
+            layer_init(nn.Linear(np.array(env.observation_space.shape).prod(), 256)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
+            layer_init(nn.Linear(256, 256)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, np.prod(env.action_space.shape)), std=0.01),
+            layer_init(nn.Linear(256, np.prod(env.action_space.shape)), std=0.01),
         )
         self.actor_logstd = nn.Parameter(torch.zeros(1, np.prod(env.action_space.shape)))
 
@@ -104,12 +104,12 @@ if __name__ == "__main__":
     torch.manual_seed(given_seed)
     torch.backends.cudnn.deterministic = True
     learning_rate = 3e-4
-    num_steps = 2048
+    num_steps = 2048*4
     num_envs = 1
     batch_size = int(num_envs * num_steps)
     num_minibatches = 32
     minibatch_size = int(batch_size // num_minibatches)
-    total_timesteps = 1000000
+    total_timesteps = 4000000
     episode_length = 100
     anneal_lr = True
     gamma = 0.99
@@ -118,10 +118,11 @@ if __name__ == "__main__":
     norm_adv = True
     clip_coef = 0.2
     clip_vloss = True
-    vf_coef = 0.5
+    vf_coef = 0.19816
     ent_coef = 0.0
     max_grad_norm = 0.5
     target_kl = None
+    learning_starts = False
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using {device}")
@@ -196,8 +197,8 @@ if __name__ == "__main__":
             if abs(next_obs[0])>= 10 or (episode_t == episode_length):
                 print(f'resetting at step {episode_t}')
                 episode_count += 1
-                if episode_count % 100 == 0:
-                    write_data = [global_step, cost, loss.item(), obs, actions]
+                if episode_count % 100 == 0 and learning_starts:
+                    write_data = [global_step, cost, loss.item()]
                     write_data_csv(write_data)
                 
                 next_obs, _ = env.reset()
@@ -280,6 +281,7 @@ if __name__ == "__main__":
                 loss.backward()
                 nn.utils.clip_grad_norm_(agent.parameters(), max_grad_norm)
                 optimizer.step()
+                learning_starts = True
 
             if target_kl is not None:
                 if approx_kl > target_kl:
